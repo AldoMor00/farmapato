@@ -51,6 +51,12 @@ gh pr merge --squash --delete-branch
 
 `--delete-branch` borra la rama **remota** en GitHub. La local sigue viva y hay que borrarla a mano (paso 5).
 
+Si el merge se hizo desde la interfaz web, hay que marcar el botón **"Delete branch"** que aparece después. Si no se marcó, la rama remota sigue viva y `git fetch --prune` **no** la quita — prune solo borra refs locales de ramas que ya desaparecieron del remoto. Borrarla explícitamente:
+
+```bash
+git push origin --delete <tipo>/<slug>
+```
+
 ## 5. Limpiar — en este orden
 
 El orden importa: `git branch -d` falla si la rama sigue montada en un worktree.
@@ -90,6 +96,12 @@ Limpiar:
 ```bash
 git worktree prune               # metadata de worktrees borrados a mano
 git fetch --prune                # refs de ramas ya borradas en GitHub
+```
+
+Si tras `git fetch --prune` una rama remota sigue apareciendo en `git branch -r`, es que **no** está borrada en GitHub. Confirmarlo antes de asumir que es una ref muerta:
+
+```bash
+gh api repos/<owner>/<repo>/branches --jq '.[].name'
 ```
 
 Si un worktree fue borrado con `rm -rf` en vez de `git worktree remove`, su metadata queda huérfana en `.git/worktrees/` y la rama sigue "en uso"; `git worktree prune` lo resuelve.
