@@ -29,9 +29,28 @@ config.yaml → generador Python → Parquet en ADLS Gen2 (landing zone, única 
 - Tests por componente (pytest en `generator/tests/`, tests de dbt en `dbt/`); no hay `/tests` raíz.
 - Nunca credenciales ni cadenas de conexión en el repo: `.env` (ignorado) local, OIDC en CI.
 
+## Metodología
+
+- NPS = %promotores − %detractores, siempre reportado **con intervalo de confianza y n**. CSAT = % top-2-box en escala 1-5. CES en escala 1-7.
+- Distinguir siempre NPS **relacional** (trimestral, por email) de **transaccional** (post-entrega). Nunca mezclarlos en una métrica.
+- Modelo principal del linkage: **regresión logística** (pregunta inferencial: coeficientes, errores estándar, odds ratios, IC). GBDT + SHAP solo como robustness check en apéndice — SHAP atribuye predicciones, no permite inferencia.
+- Los marts que consume Power BI llevan **contratos de dbt** (columnas y tipos declarados).
+
 ## Git
 
 - Trunk-based, ramas cortas: `feat/`, `fix/`, `chore/`, `docs/` + scope.
 - Conventional commits con scope de componente: `feat(dbt): ...`, `fix(generator): ...`, `chore(ci): ...`.
 - **Nunca** merge de main hacia la rama; si quedó atrás, `git rebase main`. Merge solo rama → main vía PR.
 - PRs pequeñas y atómicas; si un cambio rompe un contrato entre componentes, el fix de ambos lados va junto.
+
+### Worktrees
+
+El trabajo en rama se hace en **git worktrees**, no con `git checkout -b` sobre el directorio principal. El directorio principal se queda siempre en `main`.
+
+```bash
+git worktree add ../farmapato-wt/<rama> -b <rama>   # crear
+git worktree remove ../farmapato-wt/<rama>          # limpiar tras el merge
+git worktree list                                   # revisar cuáles siguen vivos
+```
+
+Cada worktree necesita su propio `uv sync` (el `.venv/` no se comparte) y no hereda los archivos no versionados del directorio principal. Al cerrar una PR, eliminar el worktree y la rama.
