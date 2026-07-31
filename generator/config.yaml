@@ -1,0 +1,299 @@
+# FarmaPato — parámetros del modelo generativo
+#
+# Todo el comportamiento de los datos sintéticos vive aquí. El generador no
+# contiene números mágicos: lee este archivo y produce los Parquet de las 9
+# tablas raw.
+#
+# Unidades: la "satisfacción latente" es una variable continua sin unidad,
+# calibrada para que 0 sea un cliente neutro y una desviación estándar sea 1.0.
+# Todos los efectos operativos se expresan en esa escala, así que son
+# directamente comparables entre sí.
+
+meta:
+  seed: 20260731 # semilla maestra; las sub-semillas se derivan de esta
+  start_date: 2024-07-01
+  end_date: 2026-06-30 # 24 meses = 8 olas trimestrales de NPS relacional
+  timezone: America/Mexico_City
+
+# --------------------------------------------------------------------------
+# Escala
+# --------------------------------------------------------------------------
+scale:
+  active_customers_end: 80000 # clientes activos al final del periodo
+  # El padrón crece de forma gradual: se genera una cohorte de altas por mes.
+  # 'growth_curve' es multiplicador del padrón inicial hasta el final.
+  initial_customers: 48000
+  monthly_growth_rate: 0.0215 # 48k * 1.0215^24 ≈ 80k
+  orders_per_month_end: 45000
+  # Estacionalidad: multiplicador mensual sobre el volumen de órdenes OTC.
+  # Invierno mexicano (dic-feb) sube por temporada de gripe.
+  seasonality_otc:
+    { 1: 1.18, 2: 1.12, 3: 1.02, 4: 0.96, 5: 0.94, 6: 0.95, 7: 0.97, 8: 0.98, 9: 1.00, 10: 1.04, 11: 1.10, 12: 1.20 }
+  # Los pedidos de resurtido son mensuales y NO estacionales: el paciente
+  # crónico necesita su medicamento en agosto igual que en enero.
+
+geography:
+  cities:
+    - { name: CDMX, weight: 0.50, base_delivery_days: 1.4 }
+    - { name: Guadalajara, weight: 0.28, base_delivery_days: 1.8 }
+    - { name: Monterrey, weight: 0.22, base_delivery_days: 1.7 }
+
+channels:
+  # Canal preferido del cliente. Sesga tanto la satisfacción base como la
+  # propensión a responder encuestas.
+  distribution: { app: 0.46, web: 0.30, whatsapp: 0.16, call_center: 0.08 }
+  acquisition: { organico: 0.32, paid_search: 0.26, referido: 0.22, redes: 0.20 }
+
+# --------------------------------------------------------------------------
+# Catálogo
+# --------------------------------------------------------------------------
+catalog:
+  n_products: 1200
+  categories:
+    - { name: otc, share: 0.42, price_mean: 165, price_sd: 90, requires_prescription: false }
+    - { name: dermocosmetica, share: 0.18, price_mean: 480, price_sd: 260, requires_prescription: false }
+    - { name: cronicos_diabetes, share: 0.16, price_mean: 720, price_sd: 310, requires_prescription: true }
+    - { name: cronicos_hipertension, share: 0.14, price_mean: 610, price_sd: 270, requires_prescription: true }
+    - { name: cuidado_personal, share: 0.10, share_note: "relleno de canasta", price_mean: 210, price_sd: 120, requires_prescription: false }
+
+# --------------------------------------------------------------------------
+# Plan Resurtido (aquí vive el churn)
+# --------------------------------------------------------------------------
+subscriptions:
+  share_of_customers: 0.30 # ~24,000 suscriptores
+  revenue_share_target: 0.55 # ~55% del ingreso total (validado por pytest)
+  conditions: { diabetes: 0.54, hipertension: 0.46 }
+  monthly_value: { mean: 890, sd: 320, min: 250 }
+  frequency: { mensual: 0.82, bimestral: 0.18 }
+  discount_vs_transactional: 0.12
+  cancellation_reasons:
+    # Solo el primero está ligado a la satisfacción; el resto es el ruido
+    # independiente (ver churn.independent_share).
+    - insatisfaccion_servicio
+    - cambio_tratamiento_medico
+    - mudanza
+    - costo
+    - sin_motivo_registrado
+
+# --------------------------------------------------------------------------
+# Satisfacción latente
+# --------------------------------------------------------------------------
+# latente = base_segmento + offset_canal + Σ(efectos operativos recientes) + ruido
+latent_satisfaction:
+  base_mean:
+    transactional: 0.35
+    subscription: 0.55 # el suscriptor se autoselecciona: más comprometido
+  channel_offset:
+    app: 0.10
+    web: 0.00
+    whatsapp: -0.05
+    call_center: -0.20 # quien prefiere teléfono suele tener más fricción
+  individual_sd: 0.85 # heterogeneidad entre clientes
+  transient_noise_sd: 0.35 # ruido del momento, distinto en cada encuesta
+  # Los eventos operativos no pesan para siempre: su efecto decae.
+  event_memory_days: 90
+  event_decay_halflife_days: 30
+
+operational_effects:
+  # Efecto sobre la latente, en desviaciones estándar. Signo negativo = daño.
+  # Jerarquía deliberada: quiebre en crónico >> entrega tardía > ticket lento > precio.
+  stockout_chronic: -0.85 # driver dominante: te quedas sin tu medicamento
+  stockout_otc: -0.30
+  partial_fill: -0.25 # pedido incompleto
+  substitution: -0.18 # genérico en vez de la marca pedida
+  price_perception: -0.12 # débil a propósito: el hallazgo NO es precio
+
+  delivery_delay:
+    # No-linealidad suave: un retraso de medio día no se nota; a partir de ~2
+    # días el daño crece rápido y luego satura. Es una logística invertida.
+    # efecto(d) = -max_effect / (1 + exp(-steepness * (d - threshold_days)))
+    threshold_days: 2.0
+    steepness: 1.6
+    max_effect: -0.60
+    # El retraso duele más cuando el pedido es de crónicos: se te acaba el
+    # medicamento. Multiplicador sobre el efecto anterior.
+    chronic_multiplier: 1.45
+
+  ticket_resolution:
+    # Daño por lentitud de soporte, lineal por hora arriba de un piso tolerado.
+    tolerated_hours: 24
+    effect_per_extra_day: -0.15
+    cap: -0.45
+
+# --------------------------------------------------------------------------
+# Operación: tasas base de los eventos
+# --------------------------------------------------------------------------
+operations:
+  fill_status:
+    # Probabilidades a nivel ítem, en condiciones normales.
+    completo: 0.918
+    parcial: 0.030
+    sustituido: 0.034
+    agotado: 0.018
+  delivery:
+    # Días de entrega = base de la ciudad + Gamma(shape, scale); la promesa se
+    # fija al momento del pedido, la demora se calcula contra ella.
+    delay_shape: 1.6
+    delay_scale: 0.55
+    promised_days_offset: 1.0 # se promete 1 día más que la base de la ciudad
+    failed_delivery_rate: 0.006
+  tickets:
+    # Probabilidad de que un pedido genere ticket, condicionada al evento.
+    base_rate_per_order: 0.035
+    rate_if_stockout: 0.28
+    rate_if_late: 0.19
+    categories: { entrega: 0.34, producto: 0.22, facturacion: 0.19, receta: 0.14, otro: 0.11 }
+    resolution_hours: { shape: 1.8, scale: 14 }
+
+# --------------------------------------------------------------------------
+# Instrumentos de encuesta
+# --------------------------------------------------------------------------
+# Las invitaciones se generan siempre; las respuestas dependen de la latente
+# (sesgo de no respuesta orgánico) y del canal.
+surveys:
+  touchpoints:
+    nps_relacional:
+      scale: nps
+      cadence: quarterly # 8 olas en 24 meses
+      channel: email
+      sample_share: 1.0 # se invita a todo el padrón activo
+      base_response_rate: 0.08 # ~6,400 respuestas por ola
+    nps_transaccional:
+      scale: nps
+      trigger: delivery_completed
+      channel: app
+      sample_share: 0.35 # no se encuesta cada entrega: fatiga
+      base_response_rate: 0.15
+    csat_ticket:
+      scale: csat
+      trigger: ticket_resolved
+      base_response_rate: 0.22
+    ces_resurtido:
+      scale: ces
+      trigger: subscription_refill
+      sample_share: 0.30
+      base_response_rate: 0.12
+    ces_facturacion:
+      scale: ces
+      trigger: billing_ticket_resolved
+      base_response_rate: 0.18
+
+  response_bias:
+    # Los multiplicadores se NORMALIZAN para que la tasa realizada de cada
+    # touchpoint sea la de 'base_response_rate'. Sin normalizar, el sesgo
+    # inflaría el 8% relacional a ~11% y el config estaría mintiendo sobre su
+    # propio número. Lo que el sesgo cambia es QUIÉN responde, no cuántos.
+    normalize_to_base_rate: true
+    # Sesgo de no respuesta: responden más los extremos (curva en U).
+    # multiplicador = 1 + extremity_weight * |latente - media|, con tope.
+    extremity_weight: 0.34
+    max_multiplier: 1.9
+    # Sesgo de canal: quién contesta según su canal preferido.
+    channel_multiplier: { app: 1.25, web: 1.00, whatsapp: 0.85, call_center: 0.60 }
+    response_lag_days: { shape: 1.4, scale: 1.8 }
+
+  scales:
+    nps:
+      # Cortes tipo probit ordenado sobre (latente + ruido), calibrados para
+      # una distribución realista con pico en 9-10:
+      # ~46% promotores, ~32% pasivos, ~22% detractores → NPS ≈ 24.
+      cutpoints: [-3.05, -2.55, -2.10, -1.70, -1.30, -0.90, -0.45, 0.05, 0.55, 1.15]
+      promoter_min: 9
+      detractor_max: 6
+    csat:
+      cutpoints: [-1.55, -0.75, -0.05, 0.75] # 1-5; top-2-box ≈ 72%
+      top_box_min: 4
+    ces:
+      # 1-7, donde 7 = "muy fácil". Se invierte respecto al esfuerzo.
+      cutpoints: [-1.85, -1.20, -0.60, -0.05, 0.50, 1.15]
+
+  verbatim:
+    # La mayoría no escribe comentario; los detractores escriben más.
+    base_rate: 0.11
+    detractor_multiplier: 2.4
+
+# --------------------------------------------------------------------------
+# Churn del Plan Resurtido
+# --------------------------------------------------------------------------
+churn:
+  # P(cancelar en 90 días) = riesgo_independiente + componente ligado a la latente.
+  #
+  # Calibrado por simulación (no a ojo): promotor 2.95%, pasivo 4.98%,
+  # detractor 11.01% → razón detractor/promotor = 3.73x.
+  #
+  # Ojo con la atenuación: agrupar por categoría NPS observada, no por la
+  # latente real, acerca los grupos a la media porque el score es un proxy
+  # ruidoso. El coeficiente tiene que ser más pronunciado de lo que sugiere
+  # la cuenta hecha sobre la latente verdadera.
+  #
+  # El componente independiente es la parte NO explicable por satisfacción
+  # (mudanza, cambio de tratamiento, alta médica). Mantiene el pseudo-R² del
+  # modelo logístico en el rango realista de 0.05-0.10: hay señal, pero el
+  # churn no se "explica" con la encuesta. Esto es a propósito y se discute
+  # en las limitaciones del informe.
+  independent_share_target: 0.40 # observado: 41%
+  independent_hazard_90d: 0.020
+  logistic:
+    intercept: -3.40
+    latent_coefficient: -1.20
+  # Los cancelados no desaparecen: pueden seguir comprando transaccional.
+  post_churn_transactional_rate: 0.35
+
+# --------------------------------------------------------------------------
+# Episodio narrativo: crisis de desabasto
+# --------------------------------------------------------------------------
+# 6 semanas de quiebre severo en una ciudad. Primero cae el NPS transaccional
+# (post-entrega, inmediato) y con retraso contamina el relacional (trimestral).
+# Da un antes/y/después natural para el análisis y algo que contar.
+stockout_crisis:
+  city: Guadalajara
+  start_date: 2025-09-08
+  duration_weeks: 6
+  affected_categories: [cronicos_diabetes, cronicos_hipertension]
+  stockout_rate_multiplier: 4.2 # 1.8% → ~7.6% de ítems agotados
+  delivery_delay_extra_days: 0.9 # el reabasto de emergencia también atrasa
+  recovery_weeks: 3 # normalización gradual, no de golpe
+
+# --------------------------------------------------------------------------
+# Suciedad sembrada (documentada aquí, "descubierta" en staging)
+# --------------------------------------------------------------------------
+# Cada elemento existe para que un modelo de staging tenga que resolverlo y
+# un test de dbt lo atrape.
+dirt:
+  duplicate_customers:
+    rate: 0.015 # ~1,200 clientes duplicados
+    # Variaciones que impiden el match exacto y obligan a normalizar.
+    variations: [acentos, mayusculas, espacios_extra, alias_email_punto, alias_email_plus]
+  call_center_scale_mismatch:
+    # Proveedor distinto: el CSAT del call center viene en 1-10, no en 1-5.
+    # Sin corregir, infla el promedio global. Es la trampa más jugosa.
+    applies_to: csat_ticket
+    channel: call_center
+    native_scale: [1, 10]
+  test_accounts:
+    rate: 0.003
+    email_patterns: ["*@farmapato.test", "qa+*@*", "*prueba*"]
+  out_of_range_scores:
+    rate: 0.002
+    values: [-1, 11, 99, 999]
+  mixed_timezones:
+    # Un sistema fuente escribe UTC, otro hora local, otro sin offset.
+    naive_share: 0.22
+    utc_share: 0.31
+  nulls:
+    verbatim: 0.89 # el verbatim es mayormente NULL por diseño, no es suciedad
+    birth_year: 0.07
+    acquisition_channel: 0.04
+
+# --------------------------------------------------------------------------
+# Validaciones esperadas (las asserta pytest sobre el dataset generado)
+# --------------------------------------------------------------------------
+# Si el generador cambia y estos rangos se rompen, el test falla: el modelo
+# generativo está calibrado, no es un accidente.
+expected:
+  nps_relacional_overall: { min: 15, max: 35 }
+  detractor_share: { min: 0.16, max: 0.28 }
+  csat_top2box: { min: 0.65, max: 0.80 }
+  churn_ratio_detractor_vs_promoter: { min: 3.0, max: 4.5 }
+  subscription_revenue_share: { min: 0.50, max: 0.60 }
+  relational_responses_per_wave: { min: 4500, max: 8000 }
