@@ -1,0 +1,2 @@
+# Normaliza a LF en el repo; evita sorpresas entre Windows local y Linux en CI
+* text=auto eol=lf
