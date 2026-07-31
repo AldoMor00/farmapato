@@ -8,3 +8,11 @@ dependencies = []
 dev = [
     "ruff>=0.16.1",
 ]
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+# E/F: pycodestyle + pyflakes; I: import sorting; UP: modernización de sintaxis;
+# B: bugbear (bugs comunes); SIM: simplificaciones.
+select = ["E", "F", "I", "UP", "B", "SIM"]

@@ -23,7 +23,6 @@ config.yaml → generador Python → Parquet en ADLS Gen2 (landing zone, única 
 ## Reglas duras
 
 - Package manager: **uv** (nunca pip ni poetry).
-- Lint y formato de Python con **ruff** (`uv run ruff check .` y `uv run ruff format .`) antes de cada commit que toque `.py`.
 - La ABT se construye en dbt como SQL (window functions, point-in-time); **nunca en pandas**.
 - Análisis en Quarto (`.qmd`); **nada de `.ipynb`** en el repo.
 - Tests por componente (pytest en `generator/tests/`, tests de dbt en `dbt/`); no hay `/tests` raíz.
