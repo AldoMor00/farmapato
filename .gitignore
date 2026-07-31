@@ -1,0 +1,30 @@
+# Contexto local, no artefacto del portafolio
+farmapato_brief.md
+
+# Secretos y entorno
+.env
+
+# Python / uv
+.venv/
+__pycache__/
+*.egg-info/
+
+# Datos generados (lo durable vive en ADLS, no en el repo)
+data/
+*.parquet
+
+# dbt
+dbt/target/
+dbt/dbt_packages/
+dbt/logs/
+
+# Quarto
+.quarto/
+analysis/*_files/
+
+# Claude Code (config personal, no compartida)
+.claude/settings.local.json
+
+# OS
+Thumbs.db
+.DS_Store
