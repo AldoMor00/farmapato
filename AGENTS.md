@@ -44,12 +44,6 @@ config.yaml → generador Python → Parquet en ADLS Gen2 (landing zone, única 
 
 ### Worktrees
 
-El trabajo en rama se hace en **git worktrees**, no con `git checkout -b` sobre el directorio principal. El directorio principal se queda siempre en `main`.
+El trabajo en rama se hace en **git worktrees** bajo `../farmapato-wt/<slug>`, nunca con `git checkout -b` sobre el directorio principal: ese se queda siempre en `main`. Cada worktree necesita su propio `uv sync`.
 
-```bash
-git worktree add ../farmapato-wt/<rama> -b <rama>   # crear
-git worktree remove ../farmapato-wt/<rama>          # limpiar tras el merge
-git worktree list                                   # revisar cuáles siguen vivos
-```
-
-Cada worktree necesita su propio `uv sync` (el `.venv/` no se comparte) y no hereda los archivos no versionados del directorio principal. Al cerrar una PR, eliminar el worktree y la rama.
+Al cerrar una PR hay que limpiar el worktree, la rama local y la remota. El runbook completo (crear, rebasar, PR, merge, limpieza y pruning) está en la skill `worktree` — invocable con `/worktree`.
