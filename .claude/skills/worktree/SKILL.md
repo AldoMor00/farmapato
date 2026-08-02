@@ -43,34 +43,32 @@ gh pr create --title "<tipo>(<scope>): <descripción>" --body "..."
 
 Cuerpo de la PR: qué cambia, por qué, cómo se probó, screenshot si aplica.
 
-## 4. Merge
+## 4. Merge — quitar el worktree primero
+
+**El worktree se desmonta antes de mergear, no después.** `--delete-branch` borra la rama local *y* la remota, pero empieza por la local, y `git branch -d` se niega mientras la rama siga montada en un worktree. Ese fallo aborta el resto: la remota también se queda viva, y el mensaje de error sólo habla de la local, así que es fácil darlo por bueno.
 
 ```bash
-gh pr merge --squash --delete-branch
+git -C <repo-principal> worktree remove ../farmapato-wt/<slug>
+gh pr merge <número> --squash --delete-branch
+git -C <repo-principal> pull --prune
 ```
 
-`--delete-branch` borra la rama **remota** en GitHub. La local sigue viva y hay que borrarla a mano (paso 5).
+Hecho en ese orden no queda nada que limpiar: ni worktree, ni rama local, ni remota. Comprobarlo con el paso 6.
 
-Si el merge se hizo desde la interfaz web, hay que marcar el botón **"Delete branch"** que aparece después. Si no se marcó, la rama remota sigue viva y `git fetch --prune` **no** la quita — prune solo borra refs locales de ramas que ya desaparecieron del remoto. Borrarla explícitamente:
+Todo lo de `git worktree` se ejecuta **desde el directorio principal**. La ruta relativa se resuelve contra el cwd, así que lanzarlo desde dentro del worktree busca `farmapato-wt/farmapato-wt/<slug>` y falla con `is not a working tree`. Usar `git -C` evita el problema.
 
-```bash
-git push origin --delete <tipo>/<slug>
-```
+Si el worktree tiene cambios sin commitear, `git worktree remove` falla; revisar qué hay ahí antes de forzar con `--force`. `--force` también borra los archivos ignorados que vivan dentro (`.env`, `data/`): eso es lo normal, pero conviene saberlo.
 
-## 5. Limpiar — en este orden
+## 5. Si quedaron ramas colgando
 
-El orden importa: `git branch -d` falla si la rama sigue montada en un worktree.
+Pasa cuando el merge se hizo desde la interfaz web sin marcar **"Delete branch"**, o cuando `--delete-branch` abortó porque el worktree seguía montado.
 
 ```bash
-# 1. Desde el directorio principal, no desde el worktree:
-git worktree remove ../farmapato-wt/<slug>
-
-# 2. Traer el merge y podar refs remotas muertas:
+git worktree remove ../farmapato-wt/<slug>   # si sigue vivo
 git checkout main
 git pull --prune
-
-# 3. Borrar la rama local:
-git branch -D <tipo>/<slug>
+git branch -D <tipo>/<slug>                  # la local
+git push origin --delete <tipo>/<slug>       # la remota
 ```
 
 **Por qué `-D` y no `-d`**: el squash merge crea un commit nuevo en main que no comparte SHA con los commits de la rama, así que git no la reconoce como fusionada y `-d` se niega. Antes de usar `-D`, confirmar que la PR está en estado merged:
@@ -79,7 +77,7 @@ git branch -D <tipo>/<slug>
 gh pr view <número> --json state,mergedAt
 ```
 
-Si el worktree tiene cambios sin commitear, `git worktree remove` falla; revisar qué hay ahí antes de forzar con `--force`.
+**`git fetch --prune` no borra la rama remota**: prune sólo elimina refs locales de ramas que ya desaparecieron del remoto. Si la rama sigue en GitHub, hay que borrarla explícitamente con `git push origin --delete`.
 
 ## 6. Pruning periódico
 
