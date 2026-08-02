@@ -1,0 +1,50 @@
+# Warehouse analítico local de FarmaPato.
+#
+# Un solo servicio: Postgres. Es estado derivado y efímero — todo lo que vive
+# aquí se reconstruye con `make all` a partir del Parquet de la landing zone.
+#
+# Requiere un `.env` en la raíz (copiar de `.env.example`); Compose lo lee solo.
+
+services:
+  postgres:
+    # La versión mayor se fija a propósito: el service container de CI y el
+    # perfil de dbt tienen que apuntar exactamente a la misma.
+    image: postgres:17-alpine
+    container_name: farmapato-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?falta POSTGRES_USER en .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?falta POSTGRES_PASSWORD en .env}
+      POSTGRES_DB: ${POSTGRES_DB:?falta POSTGRES_DB en .env}
+    ports:
+      # 5433 en el host para no chocar con un Postgres nativo en 5432.
+      - "${POSTGRES_PORT:-5433}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      # OJO: los scripts de initdb SOLO corren cuando el volumen se crea por
+      # primera vez. Si se edita el SQL, hay que recrearlo:
+      #   docker compose down -v && docker compose up -d
+      - ./sql/00_schema_raw.sql:/docker-entrypoint-initdb.d/00_schema_raw.sql:ro
+    # Base desechable: sin garantías de durabilidad la carga masiva del paso de
+    # ingesta va mucho más rápido. Inaceptable en producción — una caída de
+    # energía corrompe el cluster — pero aquí perder los datos solo cuesta un
+    # `make load`.
+    command:
+      - postgres
+      - -c
+      - fsync=off
+      - -c
+      - synchronous_commit=off
+      - -c
+      - full_page_writes=off
+    healthcheck:
+      # El paso de carga espera a este healthcheck: Postgres acepta conexiones
+      # varios segundos después de que el contenedor existe.
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+
+volumes:
+  pgdata:
