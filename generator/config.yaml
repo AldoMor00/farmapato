@@ -25,6 +25,10 @@ scale:
   initial_customers: 48000
   monthly_growth_rate: 0.0215 # 48k * 1.0215^24 ≈ 80k
   orders_per_month_end: 45000
+  # Pedidos transaccionales por cliente activo y mes (media de una Poisson).
+  # Sumados a los resurtidos de los suscriptores vigentes dan el total de
+  # arriba al cierre del periodo.
+  transactional_orders_per_customer_month: 0.40
   # Estacionalidad: multiplicador mensual sobre el volumen de órdenes OTC.
   # Invierno mexicano (dic-feb) sube por temporada de gripe.
   seasonality_otc:
@@ -124,6 +128,15 @@ operational_effects:
 # Operación: tasas base de los eventos
 # --------------------------------------------------------------------------
 operations:
+  basket:
+    # Líneas por pedido = 1 + Poisson(lambda). La canasta transaccional es
+    # chica (farmacia, no supermercado); el resurtido son los medicamentos del
+    # paciente, casi siempre uno o dos.
+    extra_lines_lambda: { transactional: 0.20, subscription: 0.35 }
+    quantity: { 1: 0.72, 2: 0.20, 3: 0.08 }
+    # Los crónicos van sobre todo por el Plan, pero algo se compra suelto:
+    # paciente sin plan, o compra de emergencia entre resurtidos.
+    chronic_share_transactional: 0.06
   fill_status:
     # Probabilidades a nivel ítem, en condiciones normales.
     completo: 0.918
@@ -201,7 +214,7 @@ surveys:
       promoter_min: 9
       detractor_max: 6
     csat:
-      cutpoints: [-1.55, -0.75, -0.05, 0.75] # 1-5; top-2-box ≈ 72%
+      cutpoints: [-1.95, -1.15, -0.50, 0.35] # 1-5; top-2-box ≈ 72%
       top_box_min: 4
     ces:
       # 1-7, donde 7 = "muy fácil". Se invierte respecto al esfuerzo.
@@ -218,8 +231,13 @@ surveys:
 churn:
   # P(cancelar en 90 días) = riesgo_independiente + componente ligado a la latente.
   #
-  # Calibrado por simulación (no a ojo): promotor 2.95%, pasivo 4.98%,
-  # detractor 11.01% → razón detractor/promotor = 3.73x.
+  # Calibrado por simulación (no a ojo). Medido sobre el dataset generado:
+  # promotor 3.15%, pasivo 5.52%, detractor 12.08% → razón 3.83x.
+  #
+  # La razón es un cociente entre dos proporciones pequeñas, así que arrastra
+  # un error estándar relativo de ~10%: entre corridas oscila en el entorno de
+  # 3.4-4.7 sin que el modelo haya cambiado. Por eso el rango de `expected` es
+  # ancho — estrecharlo fingiría una precisión que el estimador no tiene.
   #
   # Ojo con la atenuación: agrupar por categoría NPS observada, no por la
   # latente real, acerca los grupos a la media porque el score es un proxy
@@ -235,7 +253,7 @@ churn:
   independent_hazard_90d: 0.020
   logistic:
     intercept: -3.40
-    latent_coefficient: -1.20
+    latent_coefficient: -1.30
   # Los cancelados no desaparecen: pueden seguir comprando transaccional.
   post_churn_transactional_rate: 0.35
 
@@ -290,10 +308,17 @@ dirt:
 # --------------------------------------------------------------------------
 # Si el generador cambia y estos rangos se rompen, el test falla: el modelo
 # generativo está calibrado, no es un accidente.
+#
+# El ancho de cada rango va con la precisión del estimador, no con las ganas de
+# que pase el test. Las proporciones sobre decenas de miles de respuestas son
+# estables; los cocientes de proporciones pequeñas, no.
 expected:
   nps_relacional_overall: { min: 15, max: 35 }
   detractor_share: { min: 0.16, max: 0.28 }
   csat_top2box: { min: 0.65, max: 0.80 }
-  churn_ratio_detractor_vs_promoter: { min: 3.0, max: 4.5 }
+  # Cociente de dos tasas de churn pequeñas: ±10% de error estándar relativo.
+  churn_ratio_detractor_vs_promoter: { min: 3.0, max: 5.0 }
   subscription_revenue_share: { min: 0.50, max: 0.60 }
-  relational_responses_per_wave: { min: 4500, max: 8000 }
+  # El padrón promedia ~63k durante las 8 olas, no los 80k del cierre: el
+  # cálculo original (80k x 8% = 6,400) suponía un padrón que no crece.
+  relational_responses_per_wave: { min: 4000, max: 7000 }

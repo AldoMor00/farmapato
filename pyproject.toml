@@ -3,13 +3,21 @@ name = "farmapato"
 version = "0.1.0"
 requires-python = ">=3.12"
 dependencies = [
+    "faker>=40.36.0",
+    "numpy>=2.5.1",
+    "polars>=1.43.2",
     "pyyaml>=6.0.3",
 ]
 
 [dependency-groups]
 dev = [
+    "pytest>=9.1.1",
     "ruff>=0.16.1",
 ]
+
+[tool.pytest.ini_options]
+# Los tests viven por componente, no en un /tests raíz: cada uno con su toolchain.
+testpaths = ["generator/tests"]
 
 [tool.ruff]
 line-length = 100
