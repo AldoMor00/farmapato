@@ -12,11 +12,12 @@
 export
 
 .DEFAULT_GOAL := help
-.PHONY: help check lint format test generate db-up db-down db-reset db-shell
+.PHONY: help hooks check lint format test generate db-up db-down db-reset db-shell
 
 help:
 	@echo "FarmaPato - targets disponibles"
 	@echo ""
+	@echo "  hooks      instala el pre-commit de git (una vez tras clonar)"
 	@echo "  check      lint + test (lo mismo que corre CI)"
 	@echo "  lint       ruff check y verificacion de formato"
 	@echo "  format     aplica formato y arreglos automaticos"
@@ -31,6 +32,11 @@ help:
 # ---------------------------------------------------------------------------
 # Calidad
 # ---------------------------------------------------------------------------
+# El pre-commit es la garantía que no depende del editor ni del agente. Se
+# instala en el directorio de hooks común, así que los worktrees lo heredan.
+
+hooks:
+	uv run pre-commit install
 
 check: lint test
 
