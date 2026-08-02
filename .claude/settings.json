@@ -1,4 +1,7 @@
 {
+  "env": {
+    "PYTHONIOENCODING": "utf-8"
+  },
   "hooks": {
     "PostToolUse": [
       {
@@ -6,7 +9,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "uv run ruff format --quiet . && uv run ruff check --fix --quiet ."
+            "command": "uv run --no-project python \"$CLAUDE_PROJECT_DIR/.claude/hooks/ruff_on_edit.py\""
           }
         ]
       }
