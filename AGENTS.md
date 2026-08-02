@@ -23,10 +23,12 @@ config.yaml → generador Python → Parquet en ADLS Gen2 (landing zone, única 
 ## Reglas duras
 
 - Package manager: **uv** (nunca pip ni poetry).
+- El formato lo garantiza un hook de git, no el editor: tras clonar, `uv sync` y `make hooks` (una vez por clon; los worktrees lo heredan).
 - La ABT se construye en dbt como SQL (window functions, point-in-time); **nunca en pandas**.
 - Análisis en Quarto (`.qmd`); **nada de `.ipynb`** en el repo.
 - Tests por componente (pytest en `generator/tests/`, tests de dbt en `dbt/`); no hay `/tests` raíz.
 - Nunca credenciales ni cadenas de conexión en el repo: `.env` (ignorado) local, OIDC en CI.
+- Las instrucciones del proyecto viven en **este archivo**. La configuración de un agente concreto (`.claude/`) es un adaptador: puede automatizar lo que aquí se declara, nunca contener reglas que no estén aquí.
 
 ## Metodología
 
@@ -50,4 +52,4 @@ Un **git worktree** bajo `../farmapato-wt/<slug>` es la excepción, no la norma:
 
 Ojo con el paralelismo: Postgres es un contenedor y un volumen compartidos, así que dos ramas no pueden reconstruir la base a la vez.
 
-El runbook completo (crear, rebasar, PR, merge, limpieza y pruning, con y sin worktree) está en la skill `branch` — invocable con `/branch`.
+El runbook completo (crear, rebasar, PR, merge, limpieza y pruning, con y sin worktree) está en `docs/branching.md`.
