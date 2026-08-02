@@ -42,8 +42,12 @@ config.yaml → generador Python → Parquet en ADLS Gen2 (landing zone, única 
 - **Nunca** merge de main hacia la rama; si quedó atrás, `git rebase main`. Merge solo rama → main vía PR.
 - PRs pequeñas y atómicas; si un cambio rompe un contrato entre componentes, el fix de ambos lados va junto.
 
-### Worktrees
+### Ramas
 
-El trabajo en rama se hace en **git worktrees** bajo `../farmapato-wt/<slug>`, nunca con `git checkout -b` sobre el directorio principal: ese se queda siempre en `main`. Cada worktree necesita su propio `uv sync`.
+Flujo por defecto sobre el checkout principal: `git switch -c <tipo>/<slug>`, commits, PR, y de vuelta a `main` al mergear. Al cerrar una PR hay que dejar limpias la rama local y la remota.
 
-Al cerrar una PR hay que limpiar el worktree, la rama local y la remota. El runbook completo (crear, rebasar, PR, merge, limpieza y pruning) está en la skill `worktree` — invocable con `/worktree`.
+Un **git worktree** bajo `../farmapato-wt/<slug>` es la excepción, no la norma: sirve cuando hacen falta dos árboles vivos a la vez (dos cambios abiertos, agentes en paralelo, revisar una rama ajena sin tocar la propia). Cada worktree necesita su propio `uv sync` y no hereda los archivos no versionados del principal.
+
+Ojo con el paralelismo: Postgres es un contenedor y un volumen compartidos, así que dos ramas no pueden reconstruir la base a la vez.
+
+El runbook completo (crear, rebasar, PR, merge, limpieza y pruning, con y sin worktree) está en la skill `branch` — invocable con `/branch`.

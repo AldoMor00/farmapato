@@ -5,10 +5,10 @@
 #
 # Requiere un `.env` en la raíz (copiar de `.env.example`); Compose lo lee solo.
 
-# Nombre de proyecto explícito. Por defecto Compose lo deriva del directorio, y
-# como aquí se trabaja en worktrees (`../farmapato-wt/<slug>`) cada uno crearía
-# su propio proyecto con su propio volumen, chocando por el `container_name`
-# compartido. Fijándolo, la base es la misma se levante desde donde se levante.
+# Nombre de proyecto explícito. Por defecto Compose lo deriva del directorio, así
+# que levantarlo desde un worktree (`../farmapato-wt/<slug>`) crearía otro
+# proyecto con su propio volumen, chocando por el `container_name` compartido.
+# Fijándolo, la base es la misma se levante desde donde se levante.
 name: farmapato
 
 services:
