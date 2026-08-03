@@ -99,8 +99,13 @@ def ingest(conn: Connection, name: str, df: pl.DataFrame) -> int:
         return cur.adbc_ingest(name, df, mode="append", db_schema_name=SCHEMA)
 
 
-def load(conn: Connection, src: Path, tables: tuple[str, ...] = TABLES) -> dict[str, int]:
-    """Deja `raw` con exactamente el contenido del Parquet de `src`."""
+def load(conn: Connection, src: str | Path, tables: tuple[str, ...] = TABLES) -> dict[str, int]:
+    """Deja `raw` con exactamente el contenido del Parquet de `src`.
+
+    `src` es un directorio local o un URI `abfss://` de la landing zone. La ruta
+    se une con f-string porque `Path` no sobrevive a un URI, y la credencial de
+    Azure la resuelve polars sola (`credential_provider="auto"`).
+    """
     apply_schema(conn)
     truncate(conn, tables)
-    return {name: ingest(conn, name, pl.read_parquet(src / f"{name}.parquet")) for name in tables}
+    return {name: ingest(conn, name, pl.read_parquet(f"{src}/{name}.parquet")) for name in tables}
