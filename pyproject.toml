@@ -3,6 +3,7 @@ name = "farmapato"
 version = "0.1.0"
 requires-python = ">=3.12"
 dependencies = [
+    "adbc-driver-postgresql>=1.12.0",
     "faker>=40.36.0",
     "numpy>=2.5.1",
     "polars>=1.43.2",
@@ -18,7 +19,7 @@ dev = [
 
 [tool.pytest.ini_options]
 # Los tests viven por componente, no en un /tests raíz: cada uno con su toolchain.
-testpaths = ["generator/tests"]
+testpaths = ["generator/tests", "loader/tests"]
 
 [tool.ruff]
 line-length = 100

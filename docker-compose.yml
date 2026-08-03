@@ -27,9 +27,9 @@ services:
       - "${POSTGRES_PORT:-5433}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
-      # OJO: los scripts de initdb SOLO corren cuando el volumen se crea por
-      # primera vez. Si se edita el SQL, hay que recrearlo:
-      #   docker compose down -v && docker compose up -d
+      # Los scripts de initdb SOLO corren cuando el volumen se crea por primera
+      # vez, así que este mount es comodidad, no la garantía: el paso de carga
+      # reaplica el mismo archivo (idempotente) en cada `make load`.
       - ./sql/00_schema_raw.sql:/docker-entrypoint-initdb.d/00_schema_raw.sql:ro
     # Base desechable: sin garantías de durabilidad la carga masiva del paso de
     # ingesta va mucho más rápido. Inaceptable en producción — una caída de
