@@ -3,8 +3,6 @@
 # Las recetas se mantienen como comandos directos, sin lógica de shell: GNU Make
 # en Windows usa sh.exe si lo encuentra y cmd.exe si no, y no vale la pena que el
 # pipeline dependa de cuál de los dos tocó.
-#
-# `load` y `all` llegan con el paso de carga a Postgres.
 
 # Make no lee el .env por su cuenta. El guion de `-include` evita que falte el
 # archivo rompa targets como `check`, que no necesitan la base para nada.
@@ -12,7 +10,11 @@
 export
 
 .DEFAULT_GOAL := help
-.PHONY: help hooks check lint format test generate db-up db-down db-reset db-shell
+.PHONY: help hooks check lint format test all generate load db-up db-down db-reset db-shell
+
+# `all` encadena pasos que dependen del anterior; con -j Make los lanzaría en
+# paralelo y cargaría un Parquet que todavia no existe.
+.NOTPARALLEL:
 
 help:
 	@echo "FarmaPato - targets disponibles"
@@ -21,8 +23,11 @@ help:
 	@echo "  check      lint + test (lo mismo que corre CI)"
 	@echo "  lint       ruff check y verificacion de formato"
 	@echo "  format     aplica formato y arreglos automaticos"
-	@echo "  test       pytest del generador"
+	@echo "  test       pytest del generador y del loader"
+	@echo ""
+	@echo "  all        reconstruye el warehouse: db-up + generate + load"
 	@echo "  generate   escribe las 9 tablas raw en data/raw"
+	@echo "  load       carga data/raw al esquema raw de Postgres"
 	@echo ""
 	@echo "  db-up      levanta Postgres y espera a que este healthy"
 	@echo "  db-down    para Postgres (conserva el volumen)"
@@ -54,9 +59,16 @@ test:
 # ---------------------------------------------------------------------------
 # Datos
 # ---------------------------------------------------------------------------
+# `all` es la tesis del proyecto hecha comando: el warehouse entero se
+# reconstruye de cero desde el Parquet, sin estado que preservar.
+
+all: db-up generate load
 
 generate:
 	uv run python -m generator --out data/raw
+
+load:
+	uv run python -m loader --src data/raw
 
 # ---------------------------------------------------------------------------
 # Base de datos
