@@ -10,7 +10,12 @@
 export
 
 .DEFAULT_GOAL := help
-.PHONY: help hooks check lint format test all generate load db-up db-down db-reset db-shell
+.PHONY: help hooks check lint format test all generate publish load load-cloud db-up db-down db-reset db-shell
+
+# Dónde vive el Parquet. Por defecto el disco local, que es caché de desarrollo;
+# la fuente de verdad es la landing zone en ADLS Gen2.
+RAW ?= data/raw
+ADLS = abfss://$(AZURE_STORAGE_CONTAINER)@$(AZURE_STORAGE_ACCOUNT).dfs.core.windows.net/raw
 
 # `all` encadena pasos que dependen del anterior; con -j Make los lanzaría en
 # paralelo y cargaría un Parquet que todavia no existe.
@@ -28,6 +33,9 @@ help:
 	@echo "  all        reconstruye el warehouse: db-up + generate + load"
 	@echo "  generate   escribe las 9 tablas raw en data/raw"
 	@echo "  load       carga data/raw al esquema raw de Postgres"
+	@echo ""
+	@echo "  publish    genera directamente sobre la landing zone en ADLS Gen2"
+	@echo "  load-cloud carga a Postgres leyendo desde ADLS Gen2"
 	@echo ""
 	@echo "  db-up      levanta Postgres y espera a que este healthy"
 	@echo "  db-down    para Postgres (conserva el volumen)"
@@ -65,10 +73,19 @@ test:
 all: db-up generate load
 
 generate:
-	uv run python -m generator --out data/raw
+	uv run python -m generator --out $(RAW)
 
 load:
-	uv run python -m loader --src data/raw
+	uv run python -m loader --src $(RAW)
+
+# Los mismos dos pasos apuntando al lago. La variable específica de target se
+# propaga a los prerequisitos, así que no hay recetas duplicadas: `publish` es
+# `generate` con otro destino, y `load-cloud` es `load` con otro origen.
+publish: RAW := $(ADLS)
+publish: generate
+
+load-cloud: RAW := $(ADLS)
+load-cloud: load
 
 # ---------------------------------------------------------------------------
 # Base de datos

@@ -29,6 +29,8 @@ config.yaml → generador Python → Parquet en ADLS Gen2 (landing zone, única 
 - Análisis en Quarto (`.qmd`); **nada de `.ipynb`** en el repo.
 - Tests por componente (pytest en `generator/tests/` y `loader/tests/`, tests de dbt en `dbt/`); no hay `/tests` raíz.
 - Nunca credenciales ni cadenas de conexión en el repo: `.env` (ignorado) local, OIDC en CI.
+- La landing zone en ADLS Gen2 se autentica **sólo con Entra ID**: el storage account se creó con `--allow-shared-key-access false`, así que no existe llave ni connection string que filtrar. El permiso se otorga por RBAC a una identidad (`az login` en local, OIDC en CI) y el código Python es el mismo en ambos lados: polars resuelve la credencial con `credential_provider="auto"`, que por debajo es `DefaultAzureCredential`.
+- `--out` del generador y `--src` del loader aceptan ruta local o URI `abfss://`, y son `str`, nunca `Path`: `Path` colapsa la doble barra del esquema. El disco local es caché de desarrollo; la fuente de verdad es ADLS.
 - Las instrucciones del proyecto viven en **este archivo**. La configuración de un agente concreto (`.claude/`) es un adaptador: puede automatizar lo que aquí se declara, nunca contener reglas que no estén aquí.
 
 ## Metodología
