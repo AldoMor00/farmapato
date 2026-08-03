@@ -24,6 +24,7 @@ config.yaml → generador Python → Parquet en ADLS Gen2 (landing zone, única 
 
 - Package manager: **uv** (nunca pip ni poetry).
 - El formato lo garantiza un hook de git, no el editor: tras clonar, `uv sync` y `make hooks` (una vez por clon; los worktrees lo heredan).
+- El paso de carga **no limpia ni valida**: escribe el Parquet tal cual y `raw` va sin PK, FK, NOT NULL ni CHECK. Tipar, deduplicar y probar es trabajo de dbt; una constraint en `raw` sólo haría fallar la ingesta con datos que deben entrar sucios.
 - La ABT se construye en dbt como SQL (window functions, point-in-time); **nunca en pandas**.
 - Análisis en Quarto (`.qmd`); **nada de `.ipynb`** en el repo.
 - Tests por componente (pytest en `generator/tests/` y `loader/tests/`, tests de dbt en `dbt/`); no hay `/tests` raíz.
