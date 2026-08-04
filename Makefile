@@ -61,8 +61,11 @@ format:
 	uv run ruff format .
 	uv run ruff check --fix .
 
+# -ra imprime el motivo de cada test saltado. Con -q a secas un skip es una `s`
+# gris y el resumen dice "passed": así se nota que los tests de ingesta no
+# corrieron por falta de FARMAPATO_DB_TESTS=1, en vez de creer que pasaron.
 test:
-	uv run pytest -q
+	uv run pytest -q -ra
 
 # ---------------------------------------------------------------------------
 # Datos

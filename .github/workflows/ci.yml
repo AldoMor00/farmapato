@@ -1,0 +1,103 @@
+# Verifica el repo en cada cambio: lint, tests con Postgres de verdad y una
+# reconstrucción completa del warehouse a volumen real.
+#
+# No toca Azure a propósito. El generador es determinista por semilla, así que el
+# runner produce el mismo Parquet que la landing zone sin necesitar credenciales:
+# este workflow valida código, publish.yml mueve datos. Como no pide un token
+# OIDC, una PR desde un fork corre entera.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  # El default del repo es más permisivo. Que aquí no aparezca `id-token: write`
+  # es la prueba de que este job no habla con Azure.
+  contents: read
+
+# Al empujar dos veces seguidas a la misma rama, la corrida vieja ya no interesa.
+# Justo lo contrario que publish.yml: allá cancelar a media escritura dejaría la
+# landing zone con tablas de dos generaciones distintas.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        # Misma versión mayor que docker-compose.yml. Está duplicada, y por eso
+        # ambos archivos lo dicen: si una se mueve, la otra tiene que moverse.
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: farmapato
+          POSTGRES_PASSWORD: farmapato
+          POSTGRES_DB: farmapato
+        ports:
+          # Mismo puerto que en local (.env.example), así el loader encuentra la
+          # base con su default y no hay un caso especial de CI.
+          - 5433:5432
+        # La imagen de Postgres no declara HEALTHCHECK y un service container no
+        # admite la clave `healthcheck:`, así que va por flags de docker run. Sin
+        # esto el job arrancaría contra una base que todavía no acepta
+        # conexiones: el mismo motivo por el que `make db-up` usa `--wait`.
+        options: >-
+          --health-cmd "pg_isready -U farmapato -d farmapato"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+        # No monta sql/00_schema_raw.sql: el paso de carga reaplica el DDL en
+        # cada corrida, así que la base puede arrancar vacía. Tampoco lleva
+        # fsync=off —un service container no acepta argumentos de `command`—;
+        # sólo hace la carga algo más lenta que en local.
+
+    env:
+      # El loader lee la conexión del entorno; en local la exporta el Makefile
+      # desde .env, aquí se declara aquí. No son secretos: es una base efímera
+      # dentro del runner, con datos sintéticos, inalcanzable desde fuera.
+      POSTGRES_USER: farmapato
+      POSTGRES_PASSWORD: farmapato
+      POSTGRES_DB: farmapato
+      POSTGRES_HOST: localhost
+      POSTGRES_PORT: 5433
+      # Sin esto los 3 tests de ingesta se saltan y el verde no probaría nada de
+      # la carga: pytest reportaría "passed" igual, con los skips en gris.
+      FARMAPATO_DB_TESTS: 1
+
+    steps:
+      - uses: actions/checkout@v7
+
+      # Versión exacta y no `@v9`: setup-uv dejó de publicar el tag móvil de
+      # major a partir de v8, así que `@v9` no resuelve a nada.
+      - uses: astral-sh/setup-uv@v9.0.0
+        with:
+          enable-cache: true
+
+      # Con el grupo dev, al revés que publish.yml: aquí sí hacen falta pytest y
+      # ruff. --frozen: el uv.lock manda, y si quedó desactualizado respecto al
+      # pyproject.toml el job falla en vez de resolver otra cosa en silencio.
+      - name: Instalar dependencias
+        run: uv sync --frozen
+
+      # Se invocan targets del Makefile y no comandos uv sueltos: es lo que hace
+      # cierto que `make check` en local sea exactamente lo que corre CI.
+      - name: Lint
+        run: make lint
+
+      - name: Tests
+        run: make test
+
+      # El pipeline entero a volumen real contra la base del runner. Los tests de
+      # ingesta cargan 50 filas por tabla; esto carga los millones y deja `raw`
+      # igual que `make all` en local. `all` no sirve aquí porque arrastra
+      # `db-up`, que levantaría un compose que en CI sobra.
+      - name: Generar el Parquet
+        run: make generate
+
+      - name: Cargar a Postgres
+        run: make load
