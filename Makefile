@@ -101,7 +101,9 @@ db-down:
 	docker compose down
 
 # Recrea el volumen. Es también la forma de volver a ejecutar el script de
-# initdb: sólo corre cuando el directorio de datos está vacío.
+# initdb —sólo corre cuando el directorio de datos está vacío— y la única de
+# aplicar un cambio de DDL sobre tablas que ya existen: el loader reaplica el
+# script en cada carga, pero `IF NOT EXISTS` no añade columnas ni altera tipos.
 db-reset:
 	docker compose down -v
 	docker compose up -d --wait
