@@ -2,7 +2,7 @@
 
 El padrón no nace completo: se arranca con `initial_customers` (altas anteriores
 al periodo simulado) y cada mes entra una cohorte nueva según
-`monthly_growth_rate`, hasta llegar a `active_customers_end`.
+`monthly_growth_rate`.
 
 Convención interna: las fechas viven como **ordinales enteros**
 (`datetime.date.toordinal`). Comparar y muestrear enteros es vectorizable y
@@ -18,6 +18,8 @@ from typing import Any
 
 import numpy as np
 from faker import Faker
+
+from .config import memory_weights
 
 # Tamaño del catálogo de nombres. Faker se usa SOLO para construirlo (una vez,
 # con su propia semilla); el muestreo de los 80k clientes es vectorizado con
@@ -64,8 +66,9 @@ class Customers:
     sub_monthly_value: np.ndarray
     sub_bimonthly: np.ndarray
 
-    # Memoria de eventos operativos: impacto de los últimos 3 meses, por cliente.
-    impact: np.ndarray = field(default_factory=lambda: np.zeros((0, 3)))
+    # Memoria de eventos operativos por cliente: una casilla por mes de la
+    # ventana `event_memory_days` (ver `config.memory_weights`).
+    impact: np.ndarray = field(default_factory=lambda: np.zeros((0, 0)))
 
     def __len__(self) -> int:
         return len(self.customer_id)
@@ -202,7 +205,7 @@ def new_cohort(
         sub_reason=np.full(n, -1, dtype=np.int32),
         sub_monthly_value=sub_monthly_value,
         sub_bimonthly=has_sub & (rng.random(n) < subs["frequency"]["bimestral"]),
-        impact=np.zeros((n, 3)),
+        impact=np.zeros((n, len(memory_weights(cfg)))),
     )
 
 

@@ -17,6 +17,11 @@ import yaml
 
 CONFIG_PATH = Path(__file__).parent / "config.yaml"
 
+# La memoria de eventos avanza en casillas de un mes porque el loop de la
+# simulación es mensual. Es la resolución del modelo, no un parámetro suyo: por
+# eso vive aquí y no en el YAML.
+MEMORY_SLOT_DAYS = 30
+
 
 def load_config(path: Path | None = None) -> dict[str, Any]:
     """Lee el YAML de parámetros del modelo generativo."""
@@ -33,6 +38,19 @@ def month_starts(cfg: dict[str, Any]) -> list[dt.date]:
         months.append(dt.date(year, month, 1))
         year, month = (year + 1, 1) if month == 12 else (year, month + 1)
     return months
+
+
+def memory_weights(cfg: dict[str, Any]) -> np.ndarray:
+    """Peso de cada casilla mensual de la memoria de eventos operativos.
+
+    El impacto de un evento decae con vida media `event_decay_halflife_days` y
+    se olvida del todo a los `event_memory_days`. Como el simulador avanza mes a
+    mes, la memoria son casillas de 30 días y el decay se evalúa en el centro de
+    cada una: con la ventana de 90 días salen tres, a los 15, 45 y 75.
+    """
+    ls = cfg["latent_satisfaction"]
+    centers = np.arange(MEMORY_SLOT_DAYS / 2, ls["event_memory_days"], MEMORY_SLOT_DAYS)
+    return 0.5 ** (centers / ls["event_decay_halflife_days"])
 
 
 def days_in_month(first_day: dt.date) -> int:
