@@ -1,5 +1,7 @@
 # FarmaPato 🦆
 
+[![CI](https://github.com/AldoMor00/farmapato/actions/workflows/ci.yml/badge.svg)](https://github.com/AldoMor00/farmapato/actions/workflows/ci.yml)
+
 > **Empresa ficticia.** FarmaPato no existe; todos los datos son sintéticos, generados con un modelo causal parametrizado y reproducible. Ninguna persona ni transacción real aparece en este proyecto.
 
 Pipeline de analytics engineering de punta a punta para una farmacia en línea mexicana ficticia: datos de satisfacción del cliente (NPS, CSAT, CES) generados, modelados y analizados hasta llegar a una cifra de negocio — el ingreso recurrente en riesgo por churn de detractores.
