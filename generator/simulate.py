@@ -199,7 +199,11 @@ def _emit_month_surveys(
     billing = ops.ticket_category == list(cfg["operations"]["tickets"]["categories"]).index(
         "facturacion"
     )
-    refill = np.flatnonzero(ops.order_is_refill)
+    # El CES de resurtido mide el esfuerzo de *recibir* el resurtido, así que lo
+    # dispara la entrega realizada, no el pedido. Una entrega fallida no tiene
+    # fecha de entrega en la tabla de hechos: la invitación quedaría fechada con
+    # el día en que el pedido habría llegado, apuntando a un evento que no pasó.
+    refill = np.flatnonzero(ops.order_is_refill & (ops.delivery_status == DELIVERY_ENTREGADA))
 
     # NPS relacional: ola trimestral por email a todo el padrón activo. No lo
     # dispara un evento, por eso su trigger va nulo (-1).

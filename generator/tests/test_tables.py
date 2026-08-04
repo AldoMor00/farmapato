@@ -93,6 +93,20 @@ def test_failed_deliveries_have_no_delivery_date(tables):
     assert failed["fecha_entrega"].null_count() == len(failed)
 
 
+def test_refill_ces_is_only_triggered_by_completed_deliveries(tables):
+    """El CES de resurtido mide recibirlo, así que la entrega tuvo que ocurrir.
+
+    Es el mismo criterio que el NPS transaccional. Sin filtrar, la invitación
+    saldría fechada con el día en que el pedido habría llegado y apuntaría a una
+    entrega que la propia tabla de hechos declara inexistente.
+    """
+    failed = tables["deliveries"].filter(pl.col("estatus") == "fallida").select("order_id")
+    ces = tables["survey_invitations"].filter(pl.col("tipo") == "ces_resurtido")
+    assert len(ces) > 0
+    offending = ces.join(failed, left_on="id_evento_disparador", right_on="order_id")
+    assert offending.is_empty(), f"{len(offending)} invitaciones sobre entregas fallidas"
+
+
 def test_duplicate_customers_were_seeded(tables, cfg):
     """Mismo humano, dos ids: staging tendrá que deduplicar."""
     customers = tables["customers"]

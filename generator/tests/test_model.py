@@ -7,20 +7,28 @@ import pytest
 
 from generator import satisfaction, surveys
 from generator.churn import cancellations
+from generator.config import MEMORY_SLOT_DAYS, memory_weights
 
 
 def test_memory_weights_decay_by_halflife(cfg):
-    """Cada casilla de memoria pesa la mitad que la de 30 días antes."""
+    """Cada casilla de memoria pesa la mitad que la de una vida media antes."""
     halflife = cfg["latent_satisfaction"]["event_decay_halflife_days"]
-    w = satisfaction.MEMORY_WEIGHTS
-    assert w[0] > w[1] > w[2] > 0
-    np.testing.assert_allclose(w[1] / w[0], 0.5 ** (30 / halflife), rtol=1e-9)
-    np.testing.assert_allclose(w[2] / w[1], 0.5 ** (30 / halflife), rtol=1e-9)
+    w = memory_weights(cfg)
+    ratio = 0.5 ** (MEMORY_SLOT_DAYS / halflife)
+    assert (np.diff(w) < 0).all() and (w > 0).all()
+    np.testing.assert_allclose(w[1:] / w[:-1], ratio, rtol=1e-9)
 
 
-def test_memory_window_matches_config():
-    """Tres casillas mensuales cubren la ventana de 90 días del config."""
-    assert len(satisfaction.MEMORY_WEIGHTS) * 30 == 90
+def test_memory_window_comes_from_config(cfg):
+    """La ventana del config manda sobre el número de casillas mensuales."""
+    assert (
+        len(memory_weights(cfg)) * MEMORY_SLOT_DAYS
+        == (cfg["latent_satisfaction"]["event_memory_days"])
+    )
+    stretched = dict(
+        cfg, latent_satisfaction=dict(cfg["latent_satisfaction"], event_memory_days=120)
+    )
+    assert len(memory_weights(stretched)) == 4
 
 
 def test_delivery_effect_is_flat_before_threshold_and_saturates(cfg):

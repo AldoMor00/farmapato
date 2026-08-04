@@ -74,7 +74,15 @@ def apply_schema(conn: Connection) -> None:
 
     Se corre en cada carga a propósito: el script montado en initdb sólo se
     ejecuta cuando el volumen se crea de cero, así que si fuera el único camino,
-    tocar el DDL exigiría acordarse de `make db-reset`.
+    añadir una tabla exigiría acordarse de `make db-reset`.
+
+    **Esto no es una migración.** `IF NOT EXISTS` crea lo que falta y no toca lo
+    que ya existe: añadir una columna o cambiarle el tipo a una no se aplica por
+    reaplicar el script, y la carga seguiría corriendo contra el esquema viejo
+    hasta que reventara el ingest. Un cambio de DDL sobre tablas que ya existen
+    exige `make db-reset`. `raw` es reconstruible por definición —el Parquet de
+    la landing zone es la fuente de verdad—, así que la respuesta correcta aquí
+    es recrear el volumen, no un sistema de migraciones.
     """
     with conn.cursor() as cur:
         for statement in statements(DDL_PATH.read_text(encoding="utf-8")):

@@ -109,6 +109,18 @@ def subscription_revenue_share(tables: dict[str, pl.DataFrame], _cfg: dict[str, 
     return orders.filter(pl.col("tipo") == "resurtido")["monto"].sum() / orders["monto"].sum()
 
 
+def orders_last_month(tables: dict[str, pl.DataFrame], _cfg: dict[str, Any]) -> float:
+    """Pedidos del último mes simulado, transaccionales y de resurtido."""
+    orders = tables["orders"]
+    last = orders["fecha_pedido"].max()
+    return float(
+        orders.filter(
+            (pl.col("fecha_pedido").dt.year() == last.year)
+            & (pl.col("fecha_pedido").dt.month() == last.month)
+        ).height
+    )
+
+
 def relational_responses_per_wave(tables: dict[str, pl.DataFrame], _cfg: dict[str, Any]) -> float:
     df = _clean_nps(tables, "nps_relacional")
     n_waves = df["fecha_envio"].str.slice(0, 7).n_unique()
@@ -121,6 +133,7 @@ CALCULATORS = {
     "csat_top2box": csat_top2box,
     "churn_ratio_detractor_vs_promoter": churn_ratio_detractor_vs_promoter,
     "subscription_revenue_share": subscription_revenue_share,
+    "orders_last_month": orders_last_month,
     "relational_responses_per_wave": relational_responses_per_wave,
 }
 

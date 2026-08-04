@@ -5,12 +5,12 @@ que 0 sea un cliente neutro y una desviación estándar sea 1.0. La jerarquía d
 los golpes es deliberada (quiebre en crónico >> entrega tardía > ticket lento >
 precio) y vive entera en `config.yaml`.
 
-**Memoria de eventos.** El efecto decae con vida media de 30 días y se olvida a
-los 90. Como el simulador avanza mes a mes, la memoria se guarda como tres
-casillas —el impacto de este mes, el del anterior y el del trasanterior— con el
-decay evaluado a mitad de cada mes. La ventana de 90 días queda exacta; la
-resolución del decay dentro del mes es la aproximación que este generador
-acepta a cambio de poder vectorizar todo.
+**Memoria de eventos.** El efecto decae con la vida media del config y se olvida
+al cerrarse su ventana. Como el simulador avanza mes a mes, la memoria se guarda
+como casillas mensuales —con los valores actuales, el impacto de este mes, el
+del anterior y el del trasanterior— y los pesos salen de `config.memory_weights`.
+La ventana queda exacta; la resolución del decay dentro del mes es la
+aproximación que este generador acepta a cambio de poder vectorizar todo.
 """
 
 from __future__ import annotations
@@ -19,12 +19,9 @@ from typing import Any
 
 import numpy as np
 
+from .config import memory_weights
 from .operations import DELIVERY_FALLIDA, FILL_AGOTADO, FILL_PARCIAL, FILL_SUSTITUIDO, MonthOps
 from .population import Customers, Products
-
-# Pesos de las tres casillas de memoria: 0.5**(edad_en_días/30) evaluado a los
-# 15, 45 y 75 días — el centro de cada mes.
-MEMORY_WEIGHTS = np.array([0.5 ** (15 / 30), 0.5 ** (45 / 30), 0.5 ** (75 / 30)])
 
 # Percentil de monto a partir del cual el cliente percibe el pedido como caro.
 PRICE_PERCEPTION_PERCENTILE = 75
@@ -108,6 +105,6 @@ def latent(
     cfg: dict[str, Any], cust: Customers, idx: np.ndarray, rng: np.random.Generator
 ) -> np.ndarray:
     """Satisfacción latente de unos clientes en este momento, con ruido."""
-    memory = cust.impact[idx] @ MEMORY_WEIGHTS
+    memory = cust.impact[idx] @ memory_weights(cfg)
     noise = rng.normal(0, cfg["latent_satisfaction"]["transient_noise_sd"], size=len(idx))
     return cust.latent_base[idx] + memory + noise

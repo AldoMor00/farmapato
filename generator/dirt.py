@@ -12,13 +12,30 @@ correcto generó.
 
 from __future__ import annotations
 
+import datetime as dt
 import unicodedata
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import numpy as np
 import polars as pl
 
 CALL_CENTER = "call_center"
+
+
+def _utc_offset(cfg: dict[str, Any]) -> tuple[np.timedelta64, str]:
+    """Offset de `meta.timezone`: como delta hacia UTC y como etiqueta de texto.
+
+    Se evalúa una sola vez, en `start_date`. México eliminó el horario de verano
+    en 2022, así que en la ventana simulada el offset es constante; una zona que
+    sí lo aplicara obligaría a resolverlo timestamp a timestamp.
+    """
+    tz = ZoneInfo(cfg["meta"]["timezone"])
+    midnight = dt.datetime.combine(cfg["meta"]["start_date"], dt.time())
+    seconds = int(tz.utcoffset(midnight).total_seconds())
+    hours, minutes = divmod(abs(seconds) // 60, 60)
+    sign = "-" if seconds < 0 else "+"
+    return np.timedelta64(-seconds, "s"), f"{sign}{hours:02d}:{minutes:02d}"
 
 
 def _add_accents(names: np.ndarray, rng: np.random.Generator) -> np.ndarray:
@@ -154,7 +171,7 @@ def mixed_timezones(
     que tomar (y documentar) aguas abajo.
     """
     mt = cfg["dirt"]["mixed_timezones"]
-    offset = np.timedelta64(6, "h")  # America/Mexico_City = UTC-6
+    offset, label = _utc_offset(cfg)
     out = df
     for col in columns:
         local = df[col].to_numpy().astype("datetime64[s]")
@@ -166,7 +183,7 @@ def mixed_timezones(
         text = np.where(
             utc,
             np.char.add(as_utc.astype(str), "Z"),
-            np.where(naive, local.astype(str), np.char.add(local.astype(str), "-06:00")),
+            np.where(naive, local.astype(str), np.char.add(local.astype(str), label)),
         )
         out = out.with_columns(pl.Series(col, text))
     return out

@@ -19,15 +19,14 @@ meta:
 # Escala
 # --------------------------------------------------------------------------
 scale:
-  active_customers_end: 80000 # clientes activos al final del periodo
-  # El padrón crece de forma gradual: se genera una cohorte de altas por mes.
-  # 'growth_curve' es multiplicador del padrón inicial hasta el final.
+  # El padrón crece de forma gradual: cada mes entra una cohorte de altas. No
+  # hay un parámetro de "clientes al cierre" porque el cierre es consecuencia de
+  # estos dos, no una meta que la simulación persiga.
   initial_customers: 48000
-  monthly_growth_rate: 0.0215 # 48k * 1.0215^24 ≈ 80k
-  orders_per_month_end: 45000
+  monthly_growth_rate: 0.0215 # 48k * 1.0215^24 ≈ 80k activos al cierre
   # Pedidos transaccionales por cliente activo y mes (media de una Poisson).
-  # Sumados a los resurtidos de los suscriptores vigentes dan el total de
-  # arriba al cierre del periodo.
+  # Sumados a los resurtidos de los suscriptores vigentes dan el volumen mensual
+  # al cierre, que verifica `expected.orders_last_month`.
   transactional_orders_per_customer_month: 0.40
   # Estacionalidad: multiplicador mensual sobre el volumen de órdenes OTC.
   # Invierno mexicano (dic-feb) sube por temporada de gripe.
@@ -65,11 +64,12 @@ catalog:
 # --------------------------------------------------------------------------
 subscriptions:
   share_of_customers: 0.30 # ~24,000 suscriptores
-  revenue_share_target: 0.55 # ~55% del ingreso total (validado por pytest)
   conditions: { diabetes: 0.54, hipertension: 0.46 }
+  # El resurtido cobra este valor pactado, no la suma del catálogo: el descuento
+  # del Plan ya está dentro. La participación del Plan en el ingreso total sale
+  # de aquí y la verifica `expected.subscription_revenue_share`.
   monthly_value: { mean: 890, sd: 320, min: 250 }
   frequency: { mensual: 0.82, bimestral: 0.18 }
-  discount_vs_transactional: 0.12
   cancellation_reasons:
     # Solo el primero está ligado a la satisfacción; el resto es el ruido
     # independiente (ver churn.independent_share).
@@ -232,7 +232,7 @@ churn:
   # P(cancelar en 90 días) = riesgo_independiente + componente ligado a la latente.
   #
   # Calibrado por simulación (no a ojo). Medido sobre el dataset generado:
-  # promotor 3.15%, pasivo 5.52%, detractor 12.08% → razón 3.83x.
+  # promotor 3.07%, pasivo 4.93%, detractor 11.14% → razón 3.62x.
   #
   # La razón es un cociente entre dos proporciones pequeñas, así que arrastra
   # un error estándar relativo de ~10%: entre corridas oscila en el entorno de
@@ -319,6 +319,11 @@ expected:
   # Cociente de dos tasas de churn pequeñas: ±10% de error estándar relativo.
   churn_ratio_detractor_vs_promoter: { min: 3.0, max: 5.0 }
   subscription_revenue_share: { min: 0.50, max: 0.60 }
+  # Volumen mensual al cierre (junio 2026, con su estacionalidad). No es un
+  # parámetro: es a dónde llega el padrón con la tasa de crecimiento y los
+  # pedidos por cliente de arriba. Un conteo grande es estable entre semillas,
+  # pero el número de suscriptores vivos depende del churn: ±5% es honesto.
+  orders_last_month: { min: 42000, max: 47000 }
   # El padrón promedia ~63k durante las 8 olas, no los 80k del cierre: el
   # cálculo original (80k x 8% = 6,400) suponía un padrón que no crece.
   relational_responses_per_wave: { min: 4000, max: 7000 }
