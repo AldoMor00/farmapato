@@ -5,13 +5,16 @@ Proyecto de portafolio: pipeline de analytics engineering para una farmacia en l
 ## Arquitectura (contrato entre componentes)
 
 ```
-config.yaml → generador Python → Parquet en ADLS Gen2 (landing zone, única capa durable)
+config.yaml → generador Python → Parquet
+→ landing zone en ADLS Gen2, contenedor `landing`: copia durable del dato crudo
 → carga a Postgres esquema raw (Docker local / service container en CI; efímero)
 → dbt: staging → core (star schema) → marts (métricas CX + ABT point-in-time)
-→ Power BI y Quarto leen SOLO de los marts en Postgres, nunca de Azure
+→ export de los marts a ADLS Gen2, contenedor `serving`: capa de servicio
+→ Power BI y Quarto leen SOLO de `serving`, nunca de Postgres
 ```
 
-- Postgres es 100% reconstruible con `make all`; no persistir nada ahí que no salga del pipeline.
+- **El lago se lee en los dos extremos**, y son dos contenedores, no dos carpetas: `landing` es la zona de aterrizaje del dato crudo, `serving` la capa de servicio. Separarlos es lo que permite separar el acceso — quien consume los marts no necesita, ni obtiene, permiso sobre el dato crudo.
+- Postgres es el **motor de transformación, no el servidor de datos**: nada lo consume directamente y `make all` lo reconstruye entero. No persistir nada ahí que no salga del pipeline.
 - Los componentes se integran por la base de datos, no por imports entre sí.
 
 ## Vocabulario
@@ -29,8 +32,9 @@ config.yaml → generador Python → Parquet en ADLS Gen2 (landing zone, única 
 - Análisis en Quarto (`.qmd`); **nada de `.ipynb`** en el repo.
 - Tests por componente (pytest en `generator/tests/` y `loader/tests/`, tests de dbt en `dbt/`); no hay `/tests` raíz.
 - Nunca credenciales ni cadenas de conexión en el repo: `.env` (ignorado) local, OIDC en CI.
-- La landing zone en ADLS Gen2 se autentica **sólo con Entra ID**: el storage account se creó con `--allow-shared-key-access false`, así que no existe llave ni connection string que filtrar. El permiso se otorga por RBAC a una identidad (`az login` en local, OIDC en CI) y el código Python es el mismo en ambos lados: polars resuelve la credencial con `credential_provider="auto"`, que por debajo es `DefaultAzureCredential`.
-- `--out` del generador y `--src` del loader aceptan ruta local o URI `abfss://`, y son `str`, nunca `Path`: `Path` colapsa la doble barra del esquema. El disco local es caché de desarrollo; la fuente de verdad es ADLS.
+- El lago en ADLS Gen2 se autentica **sólo con Entra ID**: el storage account se creó con `--allow-shared-key-access false`, así que no existe llave ni connection string que filtrar. El permiso se otorga por RBAC a una identidad (`az login` en local, OIDC en CI) y el código Python es el mismo en ambos lados: polars resuelve la credencial con `credential_provider="auto"`, que por debajo es `DefaultAzureCredential`.
+- El RBAC va siempre con **scope de contenedor, nunca de cuenta**: cada identidad ve sólo el contenedor que le toca, y crear uno nuevo no reparte permisos por accidente.
+- `--out` del generador y `--src` del loader aceptan ruta local o URI `abfss://`, y son `str`, nunca `Path`: `Path` colapsa la doble barra del esquema. El disco local es caché de desarrollo; la copia durable del dato crudo vive en `landing`.
 - Las instrucciones del proyecto viven en **este archivo**. La configuración de un agente concreto (`.claude/`) es un adaptador: puede automatizar lo que aquí se declara, nunca contener reglas que no estén aquí.
 
 ## Metodología
