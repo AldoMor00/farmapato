@@ -113,3 +113,13 @@ az identity federated-credential delete --name gha-main \
 ```
 
 Corta el acceso en la siguiente corrida sin rotar nada ni tocar el repositorio. Los tokens ya emitidos caducan solos en una hora.
+
+## 6. Idempotente no es atómico
+
+`make publish` escribe **nueve blobs, uno por uno**. Si el job muere en el séptimo, la landing zone queda con siete tablas de la generación nueva y dos de la anterior. Eso es no ser atómico, y ninguna configuración del workflow lo arregla: la operación abarca nueve escrituras independientes y el almacenamiento de objetos no tiene transacciones.
+
+Lo que sí es la publicación es **idempotente**: el generador es determinista por semilla, así que la misma configuración produce exactamente los mismos bytes. Reintentar no acumula ni duplica nada — converge al estado correcto. Son propiedades distintas y conviene no confundirlas: la idempotencia garantiza que el reintento arregla el problema, no que el problema no exista mientras tanto.
+
+Se decidió **no** construir snapshots versionados (escribir a `raw/<timestamp>/` y mover un puntero al terminar, que es la forma estándar de volver atómica una escritura múltiple). El único escenario que muerde de verdad exige que alguien corra `load-cloud` justo entre el fallo y el reintento, y hoy la publicación es un `workflow_dispatch` manual con un solo operador. Construir el versionado ahora sería resolver un problema que el proceso ya evita.
+
+El disparador para construirlo sería que algo automático leyera de la landing zone sin humano en medio — un job programado de carga, u otro consumidor del lago. Ahí el estado intermedio deja de ser improbable y pasa a ser cuestión de tiempo.
