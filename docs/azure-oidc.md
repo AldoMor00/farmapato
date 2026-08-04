@@ -9,7 +9,7 @@ Un client secret es una credencial de larga vida que hay que rotar a mano y que,
 ```
 1. El runner le pide a GitHub un JWT.
    GitHub lo firma y le mete quién corre qué:
-   subject = repo:AldoMor00/farmapato:ref:refs/heads/main
+   subject = repo:<owner>@<ownerId>/<repo>@<repoId>:ref:refs/heads/main
 
 2. azure/login presenta ese JWT a Entra ID.
    Entra valida tres cosas contra la federated credential:
@@ -36,9 +36,17 @@ De la salida se necesitan `clientId` (va a GitHub) y `principalId` (recibe el RB
 az identity federated-credential create --name gha-main \
   --identity-name id-farmapato-gha -g rg-farmapato \
   --issuer https://token.actions.githubusercontent.com \
-  --subject repo:AldoMor00/farmapato:ref:refs/heads/main \
+  --subject "repo:<owner>@<ownerId>/<repo>@<repoId>:ref:refs/heads/main" \
   --audience api://AzureADTokenExchange
 ```
+
+**El subject no es el que sale en la mayoría de los tutoriales.** Casi todos escriben `repo:owner/repo:ref:refs/heads/main`, y con ese valor la autenticación falla. GitHub emite hoy el **subject inmutable**, con el id numérico del owner y del repo incrustados, para que la credencial siga sirviendo si el repositorio o la cuenta cambian de nombre. La forma honesta de saber qué se va a presentar es preguntárselo a GitHub en vez de deducirlo:
+
+```bash
+gh api repos/<owner>/<repo>/actions/oidc/customization/sub --jq .sub_claim_prefix
+```
+
+Ese prefijo, más `:ref:refs/heads/main`, es el subject literal. Si no coincide, el fallo es `AADSTS700213` y el mensaje de error trae el subject presentado — comparar los dos es el diagnóstico completo.
 
 El permiso va con **scope de contenedor, no de cuenta**: la identidad puede escribir en `landing` y en nada más, incluidos los contenedores que se creen después.
 
@@ -92,7 +100,7 @@ El job instala todo con normalidad y muere en `azure/login`:
 
 ```
 AADSTS700213: No matching federated identity record found for presented
-assertion subject 'repo:AldoMor00/farmapato:ref:refs/heads/<otra-rama>'
+assertion subject 'repo:<owner>@<ownerId>/<repo>@<repoId>:ref:refs/heads/<otra-rama>'
 ```
 
 Entra ID ni siquiera mira los permisos: el subject no coincide con ninguna federated credential y la conversación termina ahí.
