@@ -1,0 +1,62 @@
+# Regenera el Parquet crudo y lo escribe en la landing zone de ADLS Gen2.
+#
+# Es `make publish` corriendo en un runner: mismo generador, mismo destino, misma
+# forma de autenticarse. Lo único que cambia es quién es la identidad — en local
+# el usuario del `az login`, aquí una managed identity federada con GitHub.
+#
+# No hay un solo secreto en este archivo. El runner pide un token OIDC de vida
+# corta a GitHub, Entra ID lo valida contra el `subject` que declaró la federated
+# credential, y devuelve un token de Azure de una hora. El runbook completo, con
+# los comandos que crearon la identidad, está en docs/azure-oidc.md.
+
+name: Publicar datos crudos
+
+# Manual y sólo manual: esto reescribe la única capa durable del pipeline. Que
+# dependa de un `workflow_dispatch` es la decisión, no una limitación.
+on:
+  workflow_dispatch:
+
+permissions:
+  # Lo que habilita a Actions a emitir el JWT. Sin esto azure/login no tiene qué
+  # presentar y falla antes de hablar con Azure.
+  id-token: write
+  # El default del repo es más permisivo; se recorta a lo que el job necesita.
+  contents: read
+
+# Dos corridas simultáneas escribirían los mismos 9 blobs a la vez. La segunda
+# espera en vez de cancelar a la primera: a media escritura la landing zone
+# quedaría con tablas de dos generaciones distintas.
+concurrency:
+  group: landing-zone
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: astral-sh/setup-uv@v9
+        with:
+          enable-cache: true
+
+      # --frozen: el uv.lock manda; si quedó desactualizado respecto al
+      # pyproject.toml, el job falla en vez de resolver otra cosa en silencio.
+      # --no-dev: el generador no necesita pytest ni ruff.
+      - name: Instalar dependencias
+        run: uv sync --frozen --no-dev
+
+      # Deja la CLI del runner autenticada. El código Python no se entera:
+      # DefaultAzureCredential recorre su cadena y cae en AzureCliCredential,
+      # exactamente el mismo camino que en local tras `az login`.
+      - name: Autenticar contra Azure con OIDC
+        uses: azure/login@v3
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Generar y publicar las 9 tablas
+        run: >-
+          uv run python -m generator
+          --out "abfss://${{ vars.AZURE_STORAGE_CONTAINER }}@${{ vars.AZURE_STORAGE_ACCOUNT }}.dfs.core.windows.net/raw"
