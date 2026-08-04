@@ -82,7 +82,20 @@ gh workflow run publish.yml && gh run watch
 az storage fs file list -f landing --path raw --account-name stfarmapato --auth-mode login -o table
 ```
 
-Prueba negativa, que es la que demuestra que el subject sirve para algo: lanzar el workflow desde una rama que no sea `main` falla en `azure/login` con `AADSTS70021: No matching federated identity record found`.
+Prueba negativa, que es la que demuestra que el subject sirve para algo:
+
+```bash
+gh workflow run publish.yml --ref <otra-rama>
+```
+
+El job instala todo con normalidad y muere en `azure/login`:
+
+```
+AADSTS700213: No matching federated identity record found for presented
+assertion subject 'repo:AldoMor00/farmapato:ref:refs/heads/<otra-rama>'
+```
+
+Entra ID ni siquiera mira los permisos: el subject no coincide con ninguna federated credential y la conversación termina ahí.
 
 ## 5. Revocar
 
