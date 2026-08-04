@@ -2,6 +2,8 @@
 
 La landing zone en ADLS Gen2 no tiene llave: el storage account se creó con `--allow-shared-key-access false`, así que el acceso sólo se otorga por RBAC a una identidad. En local esa identidad es la del `az login`. En CI no hay usuario, y la respuesta **no** es un client secret guardado en GitHub: es una credencial federada.
 
+Este documento cubre la autenticación. Qué recursos tiene el proyecto en Azure y el presupuesto que los vigila están en [`azure-costos.md`](azure-costos.md).
+
 ## Qué gana el proyecto con esto
 
 Un client secret es una credencial de larga vida que hay que rotar a mano y que, filtrada, sirve hasta que alguien la revoque. Con OIDC no existe ese dato. La confianza es una **relación declarada** entre GitHub y Entra ID, y lo que viaja es un token que caduca en una hora.
