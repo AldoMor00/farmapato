@@ -67,9 +67,9 @@ Repetirlo por contenedor parece burocracia hasta que se mira lo que compra. El l
 | La cuenta de desarrollo (`az login`) | Contributor | Contributor |
 | El usuario que consume los marts | — | Reader |
 
-**Quien lee los marts no puede leer el dato crudo, y eso no lo garantiza una convención sino la estructura.** Con un solo contenedor no habría forma de conceder lo uno sin lo otro: el contenedor es el scope más fino que admite un role assignment de datos, así que separar el acceso obliga a separar el contenedor.
+**Quien lee los marts no puede leer el dato crudo, y eso no lo garantiza una convención sino la estructura**: el contenedor es el scope más fino que admite un role assignment de datos, así que separar el acceso obliga a separar el contenedor.
 
-La cuenta de desarrollo aparece en la tabla con dos asignaciones y no con una sola de scope de cuenta, aunque sea dueña de la suscripción. La diferencia se ve al crear un contenedor: nace **sin que nadie tenga permiso de datos sobre él**, incluida la cuenta que lo creó. Un rol a nivel cuenta lo habría poblado solo, y la regla de esta sección sería una intención en vez de una propiedad. Crear el contenedor sigue funcionando porque eso es plano de control y lo cubre `Owner` — no hay que reintroducir el rol de datos para administrar el lago.
+La cuenta de desarrollo aparece con dos asignaciones y no con una de scope de cuenta, aunque sea dueña de la suscripción. La diferencia se ve al crear un contenedor: nace **sin permiso de datos para nadie**, incluida la cuenta que lo creó. Un rol a nivel cuenta lo poblaría solo, y la regla sería una intención en vez de una propiedad. Crearlo sigue funcionando —eso es plano de control y lo cubre `Owner`—, así que administrar el lago no exige reintroducir el rol de datos.
 
 **`--assignee-object-id` y no `--assignee`**: con el object id la CLI no consulta Graph, y así el comando no falla por la propagación de una identidad recién creada.
 

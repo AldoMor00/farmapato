@@ -16,6 +16,7 @@ config.yaml → generador Python → Parquet
 - **El lago se lee en los dos extremos**, y son dos contenedores, no dos carpetas: `landing` es la zona de aterrizaje del dato crudo, `serving` la capa de servicio. Separarlos es lo que permite separar el acceso — quien consume los marts no necesita, ni obtiene, permiso sobre el dato crudo.
 - Postgres es el **motor de transformación, no el servidor de datos**: nada lo consume directamente y `make all` lo reconstruye entero. No persistir nada ahí que no salga del pipeline.
 - Los componentes se integran por la base de datos, no por imports entre sí.
+- Las alternativas ya evaluadas y descartadas —Data Factory, Fabric, Postgres gestionado, DuckDB, un solo contenedor, CI leyendo del lago— están en `docs/decisiones.md` con su motivo. No volver a proponerlas sin un argumento que ese documento no conteste.
 
 ## Vocabulario
 

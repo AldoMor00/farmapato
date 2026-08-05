@@ -56,4 +56,6 @@ az consumption budget list --query "[].{nombre:name, monto:amount, gastado:curre
 az consumption usage list --start-date <YYYY-MM-DD> --end-date <YYYY-MM-DD> -o table
 ```
 
+La **fecha de caducidad del trial y el crédito restante no salen por CLI**: hay que mirarlos en el portal, en *Subscriptions* → la suscripción. `az account show` sólo dice que es un trial (`quotaId`) y que el límite de gasto está puesto, no cuánto queda.
+
 El destinatario de los avisos está en la configuración del presupuesto, no en este documento — por higiene, igual que los ids de `azure-oidc.md`.
