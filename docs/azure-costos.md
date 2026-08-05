@@ -4,7 +4,7 @@ Todo lo que este proyecto tiene en Azure vive dentro de un solo resource group, 
 
 | Recurso | Qué es | Qué cuesta |
 | --- | --- | --- |
-| `stfarmapato` | Storage account con el contenedor `landing` (ADLS Gen2) | Almacenamiento por GB-mes + operaciones por cada 10,000 |
+| `stfarmapato` | Storage account con los contenedores `landing` y `serving` (ADLS Gen2) | Almacenamiento por GB-mes + operaciones por cada 10,000 |
 | `id-farmapato-gha` | Managed identity de usuario para el OIDC de Actions | Nada |
 | `budget-farmapato` | El presupuesto que vigila lo anterior | Nada |
 

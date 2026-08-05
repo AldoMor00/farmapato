@@ -14,8 +14,12 @@ export
 
 # Dónde vive el Parquet. Por defecto el disco local, que es caché de desarrollo;
 # la fuente de verdad es la landing zone en ADLS Gen2.
+#
+# El Parquet va en la raíz del contenedor y no bajo un prefijo `raw/`: el
+# contenedor ya es la unidad de significado y de permiso, y `raw` es además el
+# nombre del esquema de Postgres, donde quiere decir otra cosa.
 RAW ?= data/raw
-ADLS = abfss://$(AZURE_STORAGE_CONTAINER)@$(AZURE_STORAGE_ACCOUNT).dfs.core.windows.net/raw
+LANDING = abfss://$(AZURE_CONTAINER_LANDING)@$(AZURE_STORAGE_ACCOUNT).dfs.core.windows.net
 
 # `all` encadena pasos que dependen del anterior; con -j Make los lanzaría en
 # paralelo y cargaría un Parquet que todavia no existe.
@@ -84,10 +88,10 @@ load:
 # Los mismos dos pasos apuntando al lago. La variable específica de target se
 # propaga a los prerequisitos, así que no hay recetas duplicadas: `publish` es
 # `generate` con otro destino, y `load-cloud` es `load` con otro origen.
-publish: RAW := $(ADLS)
+publish: RAW := $(LANDING)
 publish: generate
 
-load-cloud: RAW := $(ADLS)
+load-cloud: RAW := $(LANDING)
 load-cloud: load
 
 # ---------------------------------------------------------------------------

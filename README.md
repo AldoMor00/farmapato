@@ -11,7 +11,7 @@ Pipeline de analytics engineering de punta a punta para una farmacia en línea m
 ```
 config.yaml → Generador Python (simula sistemas fuente, datos sucios)
         ↓ escribe Parquet
-ADLS Gen2 — landing zone (única capa durable del pipeline)
+ADLS Gen2 · contenedor landing  (dato crudo; capa durable)
         ↓ ingesta
 Postgres, esquema raw  (Docker local; service container en CI; efímero)
         ↓
@@ -20,8 +20,12 @@ dbt staging  (limpieza, tipado, dedupe, tests)
 dbt core: star schema  (hechos y dimensiones)
         ↓                          ↓
 Mart de métricas CX          Mart de features (ABT point-in-time)
+        ↓ export                   ↓ export
+ADLS Gen2 · contenedor serving  (capa de servicio)
         ↓                          ↓
 Power BI (dashboard)         Quarto: linkage analysis
 ```
+
+El lago se lee en **los dos extremos**, y son dos contenedores en vez de dos carpetas por una razón concreta: el permiso sobre datos se otorga por contenedor, así que separarlos es lo que permite que quien consume los marts no obtenga acceso al dato crudo. Postgres queda como motor de transformación y no como servidor de datos — nada lo consume directamente, y `make all` lo reconstruye entero.
 
 🚧 **En construcción** — este README se convertirá en el case study técnico del proyecto.

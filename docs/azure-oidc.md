@@ -50,14 +50,26 @@ gh api repos/<owner>/<repo>/actions/oidc/customization/sub --jq .sub_claim_prefi
 
 Ese prefijo, más `:ref:refs/heads/main`, es el subject literal. Si no coincide, el fallo es `AADSTS700213` y el mensaje de error trae el subject presentado — comparar los dos es el diagnóstico completo.
 
-El permiso va con **scope de contenedor, no de cuenta**: la identidad puede escribir en `landing` y en nada más, incluidos los contenedores que se creen después.
+El permiso va con **scope de contenedor, no de cuenta**. El comando es el mismo para cada contenedor que la identidad deba escribir, y hay que correrlo una vez por cada uno:
 
 ```bash
 az role assignment create \
   --assignee-object-id <principalId> --assignee-principal-type ServicePrincipal \
   --role "Storage Blob Data Contributor" \
-  --scope "/subscriptions/<subscriptionId>/resourceGroups/rg-farmapato/providers/Microsoft.Storage/storageAccounts/stfarmapato/blobServices/default/containers/landing"
+  --scope "/subscriptions/<subscriptionId>/resourceGroups/rg-farmapato/providers/Microsoft.Storage/storageAccounts/stfarmapato/blobServices/default/containers/<contenedor>"
 ```
+
+Repetirlo por contenedor parece burocracia hasta que se mira lo que compra. El lago tiene dos —`landing` con el dato crudo, `serving` con los marts— y el permiso de cada identidad se lee entero en una tabla:
+
+| Identidad | `landing` | `serving` |
+| --- | --- | --- |
+| `id-farmapato-gha` (el pipeline) | Contributor | Contributor |
+| La cuenta de desarrollo (`az login`) | Contributor | Contributor |
+| El usuario que consume los marts | — | Reader |
+
+**Quien lee los marts no puede leer el dato crudo, y eso no lo garantiza una convención sino la estructura.** Con un solo contenedor no habría forma de conceder lo uno sin lo otro: el contenedor es el scope más fino que admite un role assignment de datos, así que separar el acceso obliga a separar el contenedor.
+
+La cuenta de desarrollo aparece en la tabla con dos asignaciones y no con una sola de scope de cuenta, aunque sea dueña de la suscripción. La diferencia se ve al crear un contenedor: nace **sin que nadie tenga permiso de datos sobre él**, incluida la cuenta que lo creó. Un rol a nivel cuenta lo habría poblado solo, y la regla de esta sección sería una intención en vez de una propiedad. Crear el contenedor sigue funcionando porque eso es plano de control y lo cubre `Owner` — no hay que reintroducir el rol de datos para administrar el lago.
 
 **`--assignee-object-id` y no `--assignee`**: con el object id la CLI no consulta Graph, y así el comando no falla por la propagación de una identidad recién creada.
 
@@ -70,8 +82,10 @@ gh variable set AZURE_CLIENT_ID --body <clientId>
 gh variable set AZURE_TENANT_ID --body <tenantId>
 gh variable set AZURE_SUBSCRIPTION_ID --body <subscriptionId>
 gh variable set AZURE_STORAGE_ACCOUNT --body stfarmapato
-gh variable set AZURE_STORAGE_CONTAINER --body landing
+gh variable set AZURE_CONTAINER_LANDING --body landing
 ```
+
+El contenedor va nombrado por su papel, no como «el contenedor», porque hay dos. `serving` no tiene variable todavía: la tendrá cuando exista `make export`, que es quien la lee.
 
 Son `vars`, no `secrets`, **a propósito**: son GUIDs que sin la relación de confianza federada no otorgan absolutamente nada. Tratarlos como secretos daría a entender que ahí hay una credencial, y el punto entero de OIDC es que no la hay. (Los valores reales no se escriben en este documento por higiene, no por confidencialidad: están en la configuración del repo.)
 
@@ -89,7 +103,7 @@ El código Python **no cambia**: `DefaultAzureCredential` recorre su cadena y ca
 ```bash
 az identity federated-credential list --identity-name id-farmapato-gha -g rg-farmapato -o table
 gh workflow run publish.yml && gh run watch
-az storage fs file list -f landing --path raw --account-name stfarmapato --auth-mode login -o table
+az storage fs file list -f landing --account-name stfarmapato --auth-mode login -o table
 ```
 
 Prueba negativa, que es la que demuestra que el subject sirve para algo:
