@@ -61,4 +61,4 @@ jobs:
       - name: Generar y publicar las 9 tablas
         run: >-
           uv run python -m generator
-          --out "abfss://${{ vars.AZURE_STORAGE_CONTAINER }}@${{ vars.AZURE_STORAGE_ACCOUNT }}.dfs.core.windows.net/raw"
+          --out "abfss://${{ vars.AZURE_CONTAINER_LANDING }}@${{ vars.AZURE_STORAGE_ACCOUNT }}.dfs.core.windows.net"
