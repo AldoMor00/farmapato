@@ -14,11 +14,10 @@ Conviene desarmar una analogía falsa antes de que la haga alguien más: **Postg
 | --- | --- |
 | **Azure Data Factory** | Ya hay orquestador: GitHub Actions, en YAML versionado, gratis y con los logs públicos. Y el JSON que genera la UI es auditable pero **no legible** — nadie lo lee en una revisión. El costo **no** fue el motivo: con un trigger semanal ADF costaría centavos al mes. |
 | **Airflow autohospedado** (Container Apps) | El free grant son 180,000 vCPU-segundos al mes = **50 vCPU-horas**. Un scheduler encendido 24/7, aun al mínimo de 0.25 vCPU, necesita ~182. Y no puede escalar a cero: un scheduler dormido no agenda nada. |
+| **Airflow efímero** dentro del workflow programado | Levantarlo, correr el DAG y tirarlo sí cabría —Actions pondría la agenda y Airflow el grafo—, pero a esta escala añade observabilidad y reintento **por modelo** de dbt, no capacidad nueva: dbt ya resuelve y paraleliza su propio DAG. Es complejidad que se paga en mantenimiento y se cobra en una captura de pantalla. |
 | **Managed Airflow en Data Factory** | **Cerrado.** Desde el 1 de enero de 2026 no se pueden crear instancias nuevas, y la página de precios está archivada. |
 | **Apache Airflow jobs en Fabric** | El pool consume **5 CU de base** (small) o 10 (large) mientras está corriendo, se usen o no. La capacidad más pequeña, F2, tiene **2 CU**. |
 | **Prefect Cloud / Dagster+** | Tienen tiers gratuitos de verdad — el Hobby de Prefect incluye plano de control hospedado y permanente. Pero por el mismo trabajo entregan un keyword que el mercado nombra mucho menos que Airflow. |
-
-Lo que queda abierto es Airflow **efímero** dentro del workflow programado: levantarlo, correr el DAG, tirarlo — con Actions poniendo la agenda y Airflow poniendo el grafo. Vale la pena decir por adelantado qué compraría y qué no: a esta escala añade observabilidad y reintento **por modelo** de dbt, no capacidad nueva, porque dbt ya resuelve y paraleliza su propio DAG.
 
 ## Plataforma de warehouse
 
