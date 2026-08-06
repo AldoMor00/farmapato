@@ -4,14 +4,38 @@ Lo que un diseño no hace dice más de él que lo que hace, y no se ve en el có
 
 El proyecto se apoya en tres restricciones que explican casi todo lo de abajo: **presupuesto de 2 USD al mes**, **cero servicios con estado durable fuera del lago**, y **el warehouse tiene que ser reconstruible de cero con un comando**.
 
-## Orquestación y cómputo
+## Orquestación
+
+El orquestador de este proyecto son `make` y GitHub Actions. **En un proceso de producción real sería Airflow**, o un equivalente como Prefect o Dagster: es lo que se opera en la industria. No está aquí por una razón concreta y comprobada — nadie hospeda un scheduler siempre encendido gratis dentro de un presupuesto de 2 USD.
+
+Conviene desarmar una analogía falsa antes de que la haga alguien más: **Postgres en un contenedor y Airflow en un contenedor no son el mismo patrón**. Postgres es una *dependencia* — el pipeline la necesita mientras corre y muere después, y eso basta. Airflow es un *scheduler*, y su valor entero está en seguir encendido cuando nadie lo mira. Un Airflow local sería `make` con un servidor web encima.
 
 | Alternativa | Por qué no |
 | --- | --- |
-| **Azure Data Factory** | Cobra por pipeline **inactivo** (~1 USD/mes) y se comería medio presupuesto sin ejecutar nada. Además el JSON que genera la UI es auditable pero **no legible** — nadie lo lee en una revisión. Y ya hay orquestador: GitHub Actions, en YAML versionado, gratis y con los logs públicos. |
-| **Fabric / Synapse** | El mismo razonamiento con peor precio. |
-| **Postgres gestionado en la nube** (Neon, Supabase, Flexible Server) | Ahorraría el paso de exportación, pero mete una base **durable y con estado** en un diseño cuya tesis es que Postgres es desechable. Contradice lo construido para ahorrar unas 60 líneas. |
+| **Azure Data Factory** | Ya hay orquestador: GitHub Actions, en YAML versionado, gratis y con los logs públicos. Y el JSON que genera la UI es auditable pero **no legible** — nadie lo lee en una revisión. El costo **no** fue el motivo: con un trigger semanal ADF costaría centavos al mes. |
+| **Airflow autohospedado** (Container Apps) | El free grant son 180,000 vCPU-segundos al mes = **50 vCPU-horas**. Un scheduler encendido 24/7, aun al mínimo de 0.25 vCPU, necesita ~182. Y no puede escalar a cero: un scheduler dormido no agenda nada. |
+| **Managed Airflow en Data Factory** | **Cerrado.** Desde el 1 de enero de 2026 no se pueden crear instancias nuevas, y la página de precios está archivada. |
+| **Apache Airflow jobs en Fabric** | El pool consume **5 CU de base** (small) o 10 (large) mientras está corriendo, se usen o no. La capacidad más pequeña, F2, tiene **2 CU**. |
+| **Prefect Cloud / Dagster+** | Tienen tiers gratuitos de verdad — el Hobby de Prefect incluye plano de control hospedado y permanente. Pero por el mismo trabajo entregan un keyword que el mercado nombra mucho menos que Airflow. |
+
+Lo que queda abierto es Airflow **efímero** dentro del workflow programado: levantarlo, correr el DAG, tirarlo — con Actions poniendo la agenda y Airflow poniendo el grafo. Vale la pena decir por adelantado qué compraría y qué no: a esta escala añade observabilidad y reintento **por modelo** de dbt, no capacidad nueva, porque dbt ya resuelve y paraleliza su propio DAG.
+
+## Plataforma de warehouse
+
+El warehouse es Postgres en un contenedor, y la elección es más pequeña de lo que parece: **dónde se ejecuta dbt es un detalle de `profiles.yml`**. Los modelos viven en git, y el mismo proyecto correría sobre Fabric, Snowflake, Databricks o Azure SQL cambiando el adaptador. Postgres está aquí porque es gratis, corre en local, itera rápido, tiene semántica cliente-servidor y `make all` lo reconstruye entero.
+
+| Alternativa | Por qué no |
+| --- | --- |
+| **Postgres gestionado en la nube** (Neon, Supabase, Flexible Server) | Ahorraría el paso de exportación, pero mete una base **durable y con estado** en un diseño cuya tesis es que Postgres es desechable. Contradice lo construido para ahorrar unas 60 líneas. Y el tier gratuito de Flexible Server tiene fecha: **0 USD durante 12 meses y después ~12 USD/mes** sólo de cómputo, seis veces el presupuesto. |
+| **Azure SQL Database** (free offer) | Gratis para siempre y en cualquier suscripción, pero el límite son 100,000 vCore-segundos = **27.8 vCore-horas al mes**, y serverless factura tiempo *online*, no tiempo de consulta: un ciclo de desarrollo con dbt lo agota en días. Además obliga a T-SQL y rompe `make all`. |
 | **DuckDB en vez de Postgres** | No por «no ser una base de datos real» — lo es. Se quería **semántica cliente-servidor**: conexiones, roles, una base que existe fuera del proceso que la consulta. Es lo que se opera en producción y es a lo que se conecta una herramienta de BI. |
+| **Microsoft Fabric** | La capacidad más pequeña, F2, son 0.36 USD/hora → **262.80 USD/mes** encendida. Pausarla no lo arregla: mientras está pausada **OneLake queda ilegible y el almacenamiento se sigue cobrando**, así que no puede ser capa de servicio; y Direct Lake exige capacidad encendida en cada vista del informe. Sostener el bucle de desarrollo de dbt encima rebasa el presupuesto justo en la fase que más itera. |
+| **Databricks Free Edition** | Gratis para siempre, sin caducidad y con `dbt-databricks` de primera clase. Pero no soporta *custom workspace storage locations* y restringe la salida a internet, así que difícilmente puede leer el ADLS de este proyecto. Merece un proyecto propio, no un injerto en este. |
+| **Synapse Analytics** | El pool serverless es casi gratis (5 USD/TB, mínimo 10 MB por consulta, sin costo en reposo), pero la plataforma está en **modo mantenimiento**: la inversión nueva va a Fabric. El pool dedicado más pequeño, DW100c, son 1.20 USD/hora. |
+
+Lo que queda abierto es Fabric como **lector** de `serving`, vía un shortcut de OneLake: no reemplaza nada, el pipeline no cambia y con pausado disciplinado son un par de dólares al mes. Va con una regla que hay que fijar antes de construirlo, no después — **el informe publicado nunca se asigna a la capacidad**, porque si vive ahí, pausarla lo rompe.
+
+> Los precios de estas dos secciones se consultaron el **2026-08-06** contra la [Azure Retail Prices API](https://prices.azure.com/api/retail/prices) (pública, sin autenticar), región `eastus2`, en USD. Se fechan a propósito: envejecen, y la página de precios del portal muestra `$-` sin sesión iniciada, que es cómo se cuela un número de blog en un documento.
 
 ## El lago
 
