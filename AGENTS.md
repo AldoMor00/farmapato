@@ -8,15 +8,16 @@ Proyecto de portafolio: pipeline de analytics engineering para una farmacia en l
 config.yaml → generador Python → Parquet
 → landing zone en ADLS Gen2, contenedor `landing`: copia durable del dato crudo
 → carga a Postgres esquema raw (Docker local / service container en CI; efímero)
-→ dbt: staging → core (star schema) → marts (métricas CX + ABT point-in-time)
+→ dbt: staging → intermediate → marts (`core`: star schema · `cx`: métricas + ABT point-in-time)
 → export de los marts a ADLS Gen2, contenedor `serving`: capa de servicio
 → Power BI y Quarto leen SOLO de `serving`, nunca de Postgres
 ```
 
 - **El lago se lee en los dos extremos**, y son dos contenedores, no dos carpetas: `landing` es la zona de aterrizaje del dato crudo, `serving` la capa de servicio. Separarlos es lo que permite separar el acceso — quien consume los marts no necesita, ni obtiene, permiso sobre el dato crudo.
+- **La forma de un mart la decide su consumidor, no una doctrina.** `core` es star schema porque el motor de Power BI es un motor de star schema; la ABT de `cx` es una tabla ancha porque una regresión necesita una matriz de diseño. Los dos se construyen desde los mismos modelos `intermediate`, así que la lógica de negocio se escribe una vez.
 - Postgres es el **motor de transformación, no el servidor de datos**: nada lo consume directamente y `make all` lo reconstruye entero. No persistir nada ahí que no salga del pipeline.
 - Los componentes se integran por la base de datos, no por imports entre sí.
-- Las alternativas ya evaluadas y descartadas —Data Factory, Fabric, Postgres gestionado, DuckDB, un solo contenedor, CI leyendo del lago— están en `docs/decisiones.md` con su motivo. No volver a proponerlas sin un argumento que ese documento no conteste.
+- Las alternativas ya evaluadas y descartadas —Data Factory, Fabric, Postgres gestionado, DuckDB, un solo contenedor, CI leyendo del lago, snapshots e incrementales en dbt— están en `docs/decisiones.md` con su motivo. No volver a proponerlas sin un argumento que ese documento no conteste.
 
 ## Vocabulario
 
@@ -36,6 +37,8 @@ config.yaml → generador Python → Parquet
 - El lago en ADLS Gen2 se autentica **sólo con Entra ID**: el storage account se creó con `--allow-shared-key-access false`, así que no existe llave ni connection string que filtrar. El permiso se otorga por RBAC a una identidad (`az login` en local, OIDC en CI) y el código Python es el mismo en ambos lados: polars resuelve la credencial con `credential_provider="auto"`, que por debajo es `DefaultAzureCredential`.
 - El RBAC va siempre con **scope de contenedor, nunca de cuenta**: cada identidad ve sólo el contenedor que le toca, y crear uno nuevo no reparte permisos por accidente.
 - `--out` del generador y `--src` del loader aceptan ruta local o URI `abfss://`, y son `str`, nunca `Path`: `Path` colapsa la doble barra del esquema. El disco local es caché de desarrollo; la copia durable del dato crudo vive en `landing`.
+- **Sin snapshots ni modelos incrementales.** Los snapshots estampan la hora de reloj y acumulan estado entre corridas, lo que rompe que `make all` reproduzca bytes idénticos desde la semilla; los incrementales no compran nada con un build de segundos. La corrección point-in-time se resuelve en la ABT con window functions, que es el problema que SCD2 existe para resolver.
+- Las capas de dbt se llaman `staging`, `intermediate` y `marts` — nombres de dbt, no `bronze`/`silver`/`gold`. El arco medallion es el mismo (`raw` es bronze, `staging` + `intermediate` es silver, `marts` es gold) y se cuenta en el README; el árbol de directorios sigue la convención de la herramienta que lo ejecuta.
 - Las instrucciones del proyecto viven en **este archivo**. La configuración de un agente concreto (`.claude/`) es un adaptador: puede automatizar lo que aquí se declara, nunca contener reglas que no estén aquí.
 
 ## Metodología
