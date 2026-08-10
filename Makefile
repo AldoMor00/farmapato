@@ -10,7 +10,7 @@
 export
 
 .DEFAULT_GOAL := help
-.PHONY: help hooks check lint format test all generate publish load load-cloud db-up db-down db-reset db-shell
+.PHONY: help hooks check lint format test all generate publish load load-cloud dbt-deps dbt-debug dbt-build db-up db-down db-reset db-shell
 
 # Dónde vive el Parquet. Por defecto el disco local, que es caché de desarrollo;
 # la fuente de verdad es la landing zone en ADLS Gen2.
@@ -20,6 +20,13 @@ export
 # nombre del esquema de Postgres, donde quiere decir otra cosa.
 RAW ?= data/raw
 LANDING = abfss://$(AZURE_CONTAINER_LANDING)@$(AZURE_STORAGE_ACCOUNT).dfs.core.windows.net
+
+# dbt se invoca siempre desde la raíz del repo, así que los dos directorios van
+# explícitos. --profiles-dir no es comodidad: en dbt Core el perfil se busca en
+# el directorio de trabajo y en Fusion en la raíz del proyecto, y el flag es lo
+# único que encabeza el orden de búsqueda en los dos motores.
+DBT = uv run dbt
+DBT_DIRS = --project-dir dbt --profiles-dir dbt
 
 # `all` encadena pasos que dependen del anterior; con -j Make los lanzaría en
 # paralelo y cargaría un Parquet que todavia no existe.
@@ -40,6 +47,10 @@ help:
 	@echo ""
 	@echo "  publish    genera directamente sobre la landing zone en ADLS Gen2"
 	@echo "  load-cloud carga a Postgres leyendo desde ADLS Gen2"
+	@echo ""
+	@echo "  dbt-deps   instala los paquetes de dbt (una vez tras clonar)"
+	@echo "  dbt-debug  verifica la conexion y la configuracion de dbt"
+	@echo "  dbt-build  corre los modelos y los tests de dbt"
 	@echo ""
 	@echo "  db-up      levanta Postgres y espera a que este healthy"
 	@echo "  db-down    para Postgres (conserva el volumen)"
@@ -93,6 +104,22 @@ publish: generate
 
 load-cloud: RAW := $(LANDING)
 load-cloud: load
+
+# ---------------------------------------------------------------------------
+# Transformación
+# ---------------------------------------------------------------------------
+# `deps` va aparte y no como prerequisito de `build`: las dependencias se
+# resuelven contra el hub por red, y encadenarlas haría que cada build dependa
+# de que el hub esté arriba. Se instalan una vez tras clonar, como `hooks`.
+
+dbt-deps:
+	$(DBT) deps $(DBT_DIRS)
+
+dbt-debug:
+	$(DBT) debug $(DBT_DIRS)
+
+dbt-build:
+	$(DBT) build $(DBT_DIRS)
 
 # ---------------------------------------------------------------------------
 # Base de datos
