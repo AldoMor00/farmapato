@@ -18,6 +18,8 @@ data/
 dbt/target/
 dbt/dbt_packages/
 dbt/logs/
+# UUID por maquina para la telemetria anonima de dbt; package-lock.yml si va
+dbt/.user.yml
 
 # Quarto
 .quarto/

@@ -1,0 +1,136 @@
+version: 2
+
+sources:
+  - name: raw
+    tables:
+      - name: customers
+        columns:
+          - name: customer_id
+            data_type: bigint
+          - name: nombre_completo
+            data_type: text
+          - name: email
+            data_type: text
+          - name: fecha_alta
+            data_type: date
+          - name: ciudad
+            data_type: text
+          - name: anio_nacimiento
+            data_type: integer
+          - name: canal_adquisicion
+            data_type: text
+          - name: canal_preferido
+            data_type: text
+
+      - name: deliveries
+        columns:
+          - name: delivery_id
+            data_type: bigint
+          - name: order_id
+            data_type: bigint
+          - name: fecha_prometida
+            data_type: date
+          - name: fecha_entrega
+            data_type: date
+          - name: estatus
+            data_type: text
+
+      - name: order_items
+        columns:
+          - name: order_id
+            data_type: bigint
+          - name: product_id
+            data_type: bigint
+          - name: cantidad
+            data_type: integer
+          - name: fill_status
+            data_type: text
+
+      - name: orders
+        columns:
+          - name: order_id
+            data_type: bigint
+          - name: customer_id
+            data_type: bigint
+          - name: fecha_pedido
+            data_type: date
+          - name: canal
+            data_type: text
+          - name: tipo
+            data_type: text
+          - name: monto
+            data_type: double precision
+
+      - name: products
+        columns:
+          - name: product_id
+            data_type: bigint
+          - name: categoria
+            data_type: text
+          - name: precio
+            data_type: double precision
+          - name: requiere_receta
+            data_type: boolean
+
+      - name: subscriptions
+        columns:
+          - name: subscription_id
+            data_type: bigint
+          - name: customer_id
+            data_type: bigint
+          - name: condicion
+            data_type: text
+          - name: fecha_inicio
+            data_type: date
+          - name: fecha_cancelacion
+            data_type: date
+          - name: motivo_cancelacion
+            data_type: text
+          - name: valor_mensual
+            data_type: double precision
+          - name: frecuencia
+            data_type: text
+
+      - name: survey_invitations
+        columns:
+          - name: invitation_id
+            data_type: bigint
+          - name: customer_id
+            data_type: bigint
+          - name: tipo
+            data_type: text
+          - name: id_evento_disparador
+            data_type: bigint
+          - name: fecha_envio
+            data_type: text
+          - name: canal
+            data_type: text
+
+      - name: survey_responses
+        columns:
+          - name: invitation_id
+            data_type: bigint
+          - name: fecha_respuesta
+            data_type: timestamp without time zone
+          - name: score
+            data_type: bigint
+          - name: verbatim
+            data_type: text
+
+      - name: tickets
+        columns:
+          - name: ticket_id
+            data_type: bigint
+          - name: customer_id
+            data_type: bigint
+          - name: order_id
+            data_type: bigint
+          - name: categoria
+            data_type: text
+          - name: canal
+            data_type: text
+          - name: created_at
+            data_type: text
+          - name: resolved_at
+            data_type: text
+

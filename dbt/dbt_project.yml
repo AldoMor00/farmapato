@@ -1,0 +1,15 @@
+name: farmapato
+version: 1.0.0
+profile: farmapato
+
+model-paths: ["models"]
+macro-paths: ["macros"]
+test-paths: ["tests"]
+
+clean-targets: ["target", "dbt_packages"]
+
+models:
+  farmapato:
+    staging:
+      +materialized: view
+      +schema: staging
