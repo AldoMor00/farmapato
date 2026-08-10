@@ -1,9 +1,12 @@
 # Red de seguridad de formato a nivel de git: ningún commit entra sin pasar por
-# ruff, sin importar qué agente o editor escribió el código.
+# los hooks, sin importar qué agente o editor escribió el archivo.
 #
-# `repo: local` + `language: system` a propósito: los hooks llaman al ruff que ya
-# fija uv.lock en vez de que pre-commit se cree su propio entorno. Así hay una
-# sola versión de ruff en el proyecto y una sola configuración (pyproject.toml).
+# La regla no es «nunca un repo externo», es **una sola versión de cada
+# herramienta**. Ruff va con `repo: local` + `language: system` porque `uv.lock`
+# ya lo fija: si pre-commit instalara el suyo, acabarían discrepando y el commit
+# pasaría el hook en local para morir en CI por formato. Los hooks genéricos de
+# abajo no existen en ningún otro sitio del proyecto, así que no hay con qué
+# desincronizarse y sí pueden venir de fuera.
 repos:
   - repo: local
     hooks:
@@ -18,3 +21,13 @@ repos:
         entry: uv run ruff check --fix
         language: system
         types: [python]
+
+  # Hasta que entró dbt, todo lo versionado era Python y estos dos hooks lo
+  # cubrían entero. Con YAML y SQL dentro hay archivos que ningún hook mira:
+  # `types: [python]` los ignora, y de ahí salieron tres .yml sin newline final.
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+      - id: check-yaml
