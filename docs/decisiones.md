@@ -36,6 +36,19 @@ Lo que queda abierto es Fabric como **lector** de `serving`, vía un shortcut de
 
 > Los precios de estas dos secciones se consultaron el **2026-08-06** contra la [Azure Retail Prices API](https://prices.azure.com/api/retail/prices) (pública, sin autenticar), región `eastus2`, en USD. Se fechan a propósito: envejecen, y la página de precios del portal muestra `$-` sin sesión iniciada, que es cómo se cuela un número de blog en un documento.
 
+## Modelado en dbt
+
+Las capas son las de dbt —`staging`, `intermediate`, `marts`— y no `bronze`/`silver`/`gold`. El arco es el mismo y el README lo cuenta como medallion, pero el árbol de directorios sigue la convención de la herramienta que lo ejecuta: un revisor que abre un proyecto de dbt espera encontrar los nombres de dbt.
+
+Dentro de `marts` hay dos formas conviviendo, y la regla que las decide es que **la forma de un mart la fija su consumidor**. `core` es un star schema porque el motor de Power BI es un motor de star schema: VertiPaq comprime claves de dimensión y filtra varios hechos desde una dimensión conforme. `cx` contiene una tabla ancha, la ABT, porque una regresión logística necesita una matriz de diseño. No es una incoherencia: es la misma condición que pone dbt en su propia guía, cuando recomienda desnormalizar **salvo** que haya un semantic layer recomponiendo métricas por encima — y Power BI es exactamente eso.
+
+| Alternativa | Por qué no |
+| --- | --- |
+| **Snapshots de dbt (SCD2)** | Un snapshot estampa `dbt_valid_from` con la hora de reloj de la corrida y acumula estado entre ejecuciones. Este pipeline se sostiene sobre que `make all` reproduce bytes idénticos desde una semilla —comprobado entre dos máquinas en la PR #19—, y un snapshot lo rompe. Además no capturaría nada: el generador emite estado final, no historia, y `raw` se reconstruye debajo. Lo que SCD2 resuelve —saber qué era cierto en el momento T— sí está resuelto, en la ABT, con window functions y un test contra fuga temporal. *(No confundir con los snapshots versionados de blobs de [`azure-oidc.md` §6](azure-oidc.md); son cosas distintas con el mismo nombre.)* |
+| **Modelos incrementales** | La escalera que recomienda dbt es vista → tabla cuando la vista tarda en *consultarse* → incremental cuando la tabla tarda en *construirse*, y avisa explícitamente de no llegar a incremental por defecto. Aquí el build completo tarda segundos. Un `is_incremental()` añadiría una rama de código, una clave única y un problema de datos que llegan tarde, a cambio de nada. El primero en escalar sería `fct_order_items`, por `fecha_pedido`, si el build pasara de un par de minutos. |
+| **Semantic Layer / MetricFlow** | La API que lo vuelve consumible es de dbt Cloud, y Power BI no puede leerla desde dbt Core. Serían definiciones de métrica que nadie consulta — la misma «clave declarada que no llega al código» que ya se rechazó con `AZURE_CONTAINER_SERVING`. Las métricas viven donde se pueden verificar: NPS con intervalo de confianza en `mart_nps_series`, el resto en medidas DAX. |
+| **`canal` como atributo degenerado** en cada hecho, sin `dim_channel` | El canal aparece en pedidos, tickets e invitaciones. Sin dimensión conforme, un filtro «canal = WhatsApp» necesita tres controles independientes que el lector tiene que mantener sincronizados a mano. Cuatro filas compran el filtrado cruzado. Los dos canales de `dim_customer` —adquisición y preferido— **no** se conectan ahí: el canal por el que ocurre un evento es una dimensión del evento, el canal que un cliente prefiere es un atributo del cliente. Conectarlos obligaría a dimensiones role-playing y `USERELATIONSHIP` sin ganar nada. |
+
 ## El lago
 
 | Alternativa | Por qué no |
